@@ -1,2 +1,30 @@
+# Node.js
 node_modules/
+npm-debug.log
+yarn-error.log
+
+# Entorno y Secretos
 .env
+.env.local
+.env.development
+.env.test
+.env.production
+*.pem
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos del Sistema Operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores / IDEs
+.vscode/
+.idea/
+*.suo
+*.sln
