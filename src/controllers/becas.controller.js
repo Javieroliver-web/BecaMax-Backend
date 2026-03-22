@@ -11,7 +11,7 @@ const getBecas = async (req, res) => {
         res.json({ data });
     } catch (error) {
         console.error('Error al obtener becas:', error);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        res.status(500).json({ error: 'Error interno del servidor', details: error.message || String(error) });
     }
 };
 
