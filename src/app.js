@@ -9,7 +9,10 @@ app.use(express.json());
 
 // Routes
 const becasRoutes = require('./routes/becas.routes');
+const logsRoutes = require('./routes/logs.routes');
+
 app.use('/api/becas', becasRoutes);
+app.use('/api/logs', logsRoutes);
 
 // Ruta de prueba
 app.get('/api/ping', (req, res) => {
