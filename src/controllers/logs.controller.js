@@ -1,5 +1,4 @@
-const fetch = require('node-fetch'); // Asumimos que podemos usar global fetch o node-fetch en node 18+, pero en caso de Vercel el Runtime suele tener fetch nativo.
-// Si fetch nativo no está disponible, en Node 18+ sí lo está. Usaremos global.fetch.
+// Utilizamos el global.fetch nativo de Node.js 18+ (Vercel ya utiliza versiones modernas).
 
 const enviarLogDiscord = async (req, res) => {
   try {
