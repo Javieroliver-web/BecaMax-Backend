@@ -10,7 +10,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Manejar explícitamente los preflights de Vercel
 
 app.use(express.json());
 
