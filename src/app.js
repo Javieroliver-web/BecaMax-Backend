@@ -3,8 +3,15 @@ const cors = require('cors');
 
 const app = express();
 
-// Middlewares
-app.use(cors());
+const corsOptions = {
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Manejar explícitamente los preflights de Vercel
+
 app.use(express.json());
 
 // Routes
