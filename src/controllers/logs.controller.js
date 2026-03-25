@@ -10,8 +10,6 @@ const enviarLogDiscord = async (req, res) => {
     const { page, ts, country, city, ip, device, lang, screen, referrer } = req.body;
 
     const discordPayload = {
-      username: 'Sylphiette',
-      avatar_url: 'https://i.imgur.com/4M34hi2.png',
       embeds: [{
         title: '📊 Nuevo acceso — BecaMax',
         color: 0x10b981,
