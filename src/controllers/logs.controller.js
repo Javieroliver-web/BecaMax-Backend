@@ -9,6 +9,11 @@ const enviarLogDiscord = async (req, res) => {
 
     const { page, ts, country, city, ip, device, lang, screen, referrer } = req.body;
 
+    // 4. Validación básica de seguridad
+    if (!page || typeof page !== 'string' || page.length > 200) {
+      return res.status(400).json({ status: 'error', message: 'Datos de log inválidos o sospechosos.' });
+    }
+
     const discordPayload = {
       embeds: [{
         title: '📊 Nuevo acceso — BecaMax',
