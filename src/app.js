@@ -20,7 +20,7 @@ const logsRoutes = require('./routes/logs.routes');
 app.use('/api/becas', becasRoutes);
 app.use('/api/logs', logsRoutes);
 
-// Ruta de prueba
+// Rutas de prueba
 app.get('/api/ping', (req, res) => {
   res.json({ message: 'Pong! El servidor BecaMax está funcionando correctamente.', status: 'success' });
 });
