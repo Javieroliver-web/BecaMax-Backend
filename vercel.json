@@ -11,5 +11,11 @@
       "src": "/(.*)",
       "dest": "server.js"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/alerts/process_cron",
+      "schedule": "0 10 * * 1"
+    }
   ]
 }
