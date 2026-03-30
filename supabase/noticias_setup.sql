@@ -26,3 +26,8 @@ CREATE POLICY "Admins can manage news" ON noticias
   FOR ALL
   USING ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin')
   WITH CHECK ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin');
+
+-- 3. Grant basic permissions to Supabase roles
+GRANT ALL PRIVILEGES ON TABLE noticias TO authenticated;
+GRANT ALL PRIVILEGES ON TABLE noticias TO anon;
+GRANT ALL PRIVILEGES ON TABLE noticias TO service_role;

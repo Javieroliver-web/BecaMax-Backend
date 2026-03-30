@@ -11,3 +11,8 @@ GRANT ALL PRIVILEGES ON TABLE public.perfiles TO service_role;
 GRANT ALL PRIVILEGES ON TABLE public.filtros_guardados TO authenticated;
 GRANT ALL PRIVILEGES ON TABLE public.filtros_guardados TO anon;
 GRANT ALL PRIVILEGES ON TABLE public.filtros_guardados TO service_role;
+
+-- Mesa de Noticias
+GRANT ALL PRIVILEGES ON TABLE public.noticias TO authenticated;
+GRANT ALL PRIVILEGES ON TABLE public.noticias TO anon;
+GRANT ALL PRIVILEGES ON TABLE public.noticias TO service_role;
