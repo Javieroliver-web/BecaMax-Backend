@@ -1,3 +1,5 @@
+const express = require('express');
+const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
@@ -17,8 +19,8 @@ app.use(limiter);
 // 3. CORS Restringido (Ajsutar origen según tu URL de Vercel)
 const corsOptions = {
   origin: process.env.FRONTEND_URL || '*', 
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-client-info', 'apikey']
 };
 app.use(cors(corsOptions));
 
@@ -27,9 +29,11 @@ app.use(express.json());
 // Routes
 const becasRoutes = require('./routes/becas.routes');
 const logsRoutes = require('./routes/logs.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 app.use('/api/becas', becasRoutes);
 app.use('/api/logs', logsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Rutas de prueba
 app.get('/api/ping', (req, res) => {
