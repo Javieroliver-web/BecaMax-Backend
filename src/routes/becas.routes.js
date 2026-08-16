@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { getBecas } = require('../controllers/becas.controller');
+const { getBecas, getBecaById } = require('../controllers/becas.controller');
 
-// Obtener becas
+// GET /api/becas                — Todas las becas con filtros, orden y paginación
 router.get('/', getBecas);
+
+// GET /api/becas/:id            — Detalle de una beca
+router.get('/:id', getBecaById);
 
 module.exports = router;
