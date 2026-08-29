@@ -24,11 +24,15 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 
 -- Solo los administradores pueden leer e insertar logs
+-- Se usa public.is_admin() (SECURITY DEFINER, ver master_repair.sql) en vez
+-- de la subconsulta directa contra perfiles: esa subconsulta exigiría que
+-- CUALQUIER rol que toque esta tabla (incluido anon) tuviera GRANT sobre
+-- perfiles, lo cual ya no es el caso a propósito (ver grant_permissions.sql).
 DROP POLICY IF EXISTS "admin_all_logs" ON public.system_logs;
 CREATE POLICY "admin_all_logs" ON public.system_logs
   FOR ALL
-  USING ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin')
-  WITH CHECK ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin');
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 -- NOTA DE SEGURIDAD (2026-08-29): existía una política "anyone_insert_logs"
 -- con WITH CHECK (true) que permitía a CUALQUIER usuario, incluso anónimo,

@@ -22,12 +22,23 @@ CREATE POLICY "Anyone can read news" ON noticias
   USING (expires_at IS NULL OR expires_at > NOW());
 
 -- 2. Only admins can insert/update/delete news
+-- NOTA (2026-08-29): antes usaba la subconsulta directa
+-- (SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin'. Como esta
+-- policy es FOR ALL (incluye SELECT), Postgres la evalúa también en cada
+-- lectura pública de noticias, y esa subconsulta exige que el rol que
+-- consulta (incluido `anon`) tenga GRANT sobre perfiles -- si no lo tiene
+-- (ver grant_permissions.sql, que se lo quita a anon a propósito), la
+-- lectura pública entera fallaba con "permission denied for table
+-- perfiles" aunque la policy "Anyone can read news" fuera correcta.
+-- public.is_admin() es SECURITY DEFINER (ver supabase/master_repair.sql)
+-- y evita ese problema evaluando con privilegios propios, no los del rol
+-- que llama.
+DROP POLICY IF EXISTS "Admins can manage news" ON noticias;
 CREATE POLICY "Admins can manage news" ON noticias
   FOR ALL
-  USING ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin')
-  WITH CHECK ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin');
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
--- 3. Grant basic permissions to Supabase roles
-GRANT ALL PRIVILEGES ON TABLE noticias TO authenticated;
-GRANT ALL PRIVILEGES ON TABLE noticias TO anon;
-GRANT ALL PRIVILEGES ON TABLE noticias TO service_role;
+-- 3. Los grants de anon/authenticated/service_role se gestionan en
+-- supabase/grant_permissions.sql (no repetir aquí para evitar que un
+-- futuro re-run de este archivo vuelva a abrir permisos ya cerrados).
