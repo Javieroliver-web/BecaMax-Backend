@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restablecer tu contraseña en BecaMax</title>
+<style>
+  body { margin: 0; padding: 0; background-color: #0f0f1a; font-family: 'Inter', Helvetica, Arial, sans-serif; color: #ffffff; }
+  .wrapper { width: 100%; table-layout: fixed; background-color: #0f0f1a; padding: 40px 0; }
+  .main { max-width: 600px; margin: 0 auto; background-color: #171727; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .header { padding: 32px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .content { padding: 40px 32px; text-align: left; }
+  .title { margin: 0 0 20px 0; font-size: 24px; font-weight: 700; color: #ffffff; }
+  .text { margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #a1a1aa; }
+  .btn-wrapper { text-align: center; margin: 32px 0; }
+  .btn { display: inline-block; padding: 14px 28px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; }
+  .footer { padding: 24px 32px; text-align: center; font-size: 13px; color: #71717a; border-top: 1px solid rgba(255,255,255,0.05); }
+</style>
+</head>
+<body>
+  <div class="wrapper">
+    <table class="main" width="100%" cellpadding="0" cellspacing="0" role="presentation">
+      <tr>
+        <td class="header">
+          <!-- Logo texto o imagen -->
+          <h2 style="margin:0; color:#10b981; font-size:22px; font-weight:800; letter-spacing:-0.5px;">BecaMax</h2>
+        </td>
+      </tr>
+      <tr>
+        <td class="content">
+          <h1 class="title">Restablece tu contraseña</h1>
+          <p class="text">Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en BecaMax. Si no has sido tú, puedes ignorar este correo de forma segura.</p>
+          <p class="text">Para elegir una nueva contraseña, haz clic en el siguiente botón:</p>
+          
+          <div class="btn-wrapper">
+            <a href="{{ .ConfirmationURL }}" class="btn">Restablecer Contraseña</a>
+          </div>
+
+          <p class="text" style="font-size: 13px; color: #71717a;">O copia y pega este enlace en tu navegador:<br><a href="{{ .ConfirmationURL }}" style="color:#10b981;word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+        </td>
+      </tr>
+      <tr>
+        <td class="footer">
+          <p style="margin:0;">© 2026 BecaMax. Encuentra tu beca ideal.</p>
+          <p style="margin:8px 0 0 0;">Has recibido este email porque estás registrado en becamax.es</p>
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>

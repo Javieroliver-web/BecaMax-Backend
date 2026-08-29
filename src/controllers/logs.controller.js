@@ -25,18 +25,18 @@ const enviarLogDiscord = async (req, res) => {
 
     const discordPayload = {
       embeds: [{
-        title: '📊 Nuevo acceso — BecaMax',
+        title: ' Nuevo acceso — BecaMax',
         color: 0x10b981,
         fields: [
-          { name: '📄 Página',      value: '`' + (page || '/') + '`',         inline: true  },
-          { name: '🕐 Fecha/Hora',  value: ts || '—',                         inline: true  },
-          { name: '🌍 País / Ciudad', value: (country || '—') + ' · ' + (city || '—'), inline: false },
-          { name: '🔗 IP',           value: '`' + (ip || '—') + '`',           inline: true  },
-          { name: (device === '📱 Móvil' ? '📱 Dispositivo' : '🖥️ Dispositivo'),
+          { name: ' Página',      value: '`' + (page || '/') + '`',         inline: true  },
+          { name: ' Fecha/Hora',  value: ts || '—',                         inline: true  },
+          { name: ' País / Ciudad', value: (country || '—') + ' · ' + (city || '—'), inline: false },
+          { name: ' IP',           value: '`' + (ip || '—') + '`',           inline: true  },
+          { name: (device === ' Móvil' ? ' Dispositivo' : ' Dispositivo'),
                                    value: device || '—',                     inline: true  },
-          { name: '🌐 Idioma',       value: lang || '—',                       inline: true  },
-          { name: '🖥 Resolución',   value: screen || '—',                     inline: true  },
-          { name: '🔀 Referrer',     value: referrer || '—',                   inline: false },
+          { name: ' Idioma',       value: lang || '—',                       inline: true  },
+          { name: ' Resolución',   value: screen || '—',                     inline: true  },
+          { name: ' Referrer',     value: referrer || '—',                   inline: false },
         ],
         footer: { text: 'BecaMax Access Logger · Sylphiette' },
         timestamp: new Date().toISOString(),

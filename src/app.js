@@ -27,15 +27,17 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // Routes
-const becasRoutes = require('./routes/becas.routes');
-const logsRoutes = require('./routes/logs.routes');
-const adminRoutes = require('./routes/admin.routes');
-const alertsRoutes = require('./routes/alerts.routes');
+const becasRoutes     = require('./routes/becas.routes');
+const logsRoutes      = require('./routes/logs.routes');
+const adminRoutes     = require('./routes/admin.routes');
+const alertsRoutes    = require('./routes/alerts.routes');
+const favoritesRoutes = require('./routes/favorites.routes');
 
-app.use('/api/becas', becasRoutes);
-app.use('/api/logs', logsRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/alerts', alertsRoutes);
+app.use('/api/becas',     becasRoutes);
+app.use('/api/logs',      logsRoutes);
+app.use('/api/admin',     adminRoutes);
+app.use('/api/alerts',    alertsRoutes);
+app.use('/api/favorites', favoritesRoutes);
 
 // Rutas de prueba
 app.get('/api/ping', (req, res) => {

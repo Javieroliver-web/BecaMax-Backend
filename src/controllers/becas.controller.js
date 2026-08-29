@@ -94,7 +94,11 @@ const getBecas = async (req, res) => {
             console.warn('Supabase sin datos de becas, usando fallback estático:', dbError?.message);
             todasLasBecas = BECAS_ESTATICAS;
         } else {
-            todasLasBecas = dbBecas;
+            // Normalizar dbBecas para que el frontend reciba el objeto `importe` esperado
+            todasLasBecas = dbBecas.map(b => ({
+                ...b,
+                importe: { min: b.importe_min || 0, max: b.importe_max || 0 }
+            }));
         }
 
         // 3. Aplicar filtros
@@ -139,7 +143,13 @@ const getBecaById = async (req, res) => {
 
         // Intentar Supabase primero
         const { data: dbBecas } = await supabase.from('becas').select('*');
-        const fuente = (dbBecas && dbBecas.length > 0) ? dbBecas : BECAS_ESTATICAS;
+        let fuente = BECAS_ESTATICAS;
+        if (dbBecas && dbBecas.length > 0) {
+            fuente = dbBecas.map(b => ({
+                ...b,
+                importe: { min: b.importe_min || 0, max: b.importe_max || 0 }
+            }));
+        }
         
         // Buscar por id numérico o UUID
         const beca = fuente.find(b => String(b.id) === String(id));
