@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const limiter = require('./middleware/rateLimiter');
 
 const app = express();
 
@@ -13,18 +13,9 @@ app.set('trust proxy', 1);
 // 1. Seguridad de Cabeceras (Helmet)
 app.use(helmet());
 
-// 2. Limitador de peticiones (Rate Limit) - 100 peticiones cada 15 min por IP
-// NOTA: express-rate-limit usa por defecto un almacén en memoria (MemoryStore)
-// que NO persiste entre invocaciones de funciones serverless de Vercel --
-// cada invocación fría puede tener su propio contador, así que este límite
-// es una capa de mitigación básica, no una garantía dura contra abuso
-// distribuido. Los endpoints realmente sensibles (admin, favoritos, cron)
-// están protegidos además por autenticación, no solo por este limiter.
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { status: 'error', message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.' }
-});
+// 2. Limitador de peticiones - 100 peticiones cada 15 min por IP.
+// Usa Upstash Redis (compartido entre invocaciones serverless) si está
+// configurado; si no, cae a un limiter en memoria. Ver middleware/rateLimiter.js.
 app.use(limiter);
 
 // 3. CORS Restringido (Ajsutar origen según tu URL de Vercel)
