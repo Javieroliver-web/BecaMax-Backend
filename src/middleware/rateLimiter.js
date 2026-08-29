@@ -21,11 +21,14 @@ function buildLimiter() {
 
     if (!url || !token) {
         console.warn('[RateLimit] UPSTASH_REDIS_REST_URL/TOKEN no configuradas: usando limiter en memoria (no persiste entre invocaciones serverless).');
-        return rateLimit({
-            windowMs: 15 * 60 * 1000,
-            max: 100,
-            message: { status: 'error', message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.' }
-        });
+        return [
+            (req, res, next) => { res.setHeader('X-RateLimit-Backend', 'memory'); next(); },
+            rateLimit({
+                windowMs: 15 * 60 * 1000,
+                max: 100,
+                message: { status: 'error', message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.' }
+            })
+        ];
     }
 
     const { Ratelimit } = require('@upstash/ratelimit');
@@ -42,7 +45,10 @@ function buildLimiter() {
     return async (req, res, next) => {
         try {
             const identifier = req.ip || 'anon';
-            const { success } = await ratelimit.limit(identifier);
+            const { success, limit, remaining } = await ratelimit.limit(identifier);
+            res.setHeader('X-RateLimit-Backend', 'upstash');
+            res.setHeader('X-RateLimit-Limit', limit);
+            res.setHeader('X-RateLimit-Remaining', remaining);
             if (!success) {
                 return res.status(429).json({ status: 'error', message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.' });
             }
