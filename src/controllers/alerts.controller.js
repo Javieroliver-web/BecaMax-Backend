@@ -44,7 +44,7 @@ function aplicarFiltros(becas, filtros) {
 }
 
 function buildEmailHTML(alerta, becasMatch) {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://beca-max.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://becamax.vercel.app';
 
     const urgencyBadge = (dias) => {
         if (dias <= 7)  return `<span style="background:#ef4444;color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;"> ${dias}d restantes</span>`;

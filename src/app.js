@@ -21,7 +21,7 @@ app.use(limiter);
 // producción conocido en vez de '*': un backend con auth por Bearer token
 // no debe caer abierto a cualquier origen por falta de una env var.
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'https://beca-max.vercel.app',
+  origin: process.env.FRONTEND_URL || 'https://becamax.vercel.app',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-client-info', 'apikey']
 };
