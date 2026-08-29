@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 
 -- Solo los administradores pueden leer e insertar logs
+DROP POLICY IF EXISTS "admin_all_logs" ON public.system_logs;
 CREATE POLICY "admin_all_logs" ON public.system_logs
   FOR ALL
   USING ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin')
