@@ -29,7 +29,10 @@ CREATE POLICY "admin_all_logs" ON public.system_logs
   USING ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin')
   WITH CHECK ((SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin');
 
--- Permitir a cualquier usuario anónimo o logueado insertar logs de acceso general
-CREATE POLICY "anyone_insert_logs" ON public.system_logs
-  FOR INSERT
-  WITH CHECK (true);
+-- NOTA DE SEGURIDAD (2026-08-29): existía una política "anyone_insert_logs"
+-- con WITH CHECK (true) que permitía a CUALQUIER usuario, incluso anónimo,
+-- insertar filas arbitrarias en system_logs (incluyendo admin_id/user_id
+-- falsos y XSS almacenado en 'details', renderizado sin escapar en
+-- admin.js). Se elimina: el backend ya inserta logs con la service_role
+-- key (salta RLS) y el panel admin usa la política admin_all_logs de arriba.
+DROP POLICY IF EXISTS "anyone_insert_logs" ON public.system_logs;

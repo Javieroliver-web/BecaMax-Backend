@@ -141,9 +141,19 @@ const sendAlertsCron = async (req, res) => {
         const authHeader = req.headers.authorization;
         const cronSecret = process.env.CRON_SECRET;
 
-        // Vercel Cron invoca con GET sin header; peticiones manuales llevan Bearer
-        const isVercelCron = req.method === 'GET';
-        if (!isVercelCron && cronSecret && (!authHeader || authHeader !== `Bearer ${cronSecret}`)) {
+        // IMPORTANTE: no existe forma de distinguir criptográficamente una
+        // petición de Vercel Cron de un curl anónimo por el método HTTP; un
+        // bypass basado en "si es GET, no pido secreto" deja el endpoint
+        // abierto a cualquiera (dispara emails reales y filtra el email de
+        // cada usuario con alertas activas en la respuesta). Vercel adjunta
+        // automáticamente `Authorization: Bearer $CRON_SECRET` a sus propias
+        // invocaciones de Cron Jobs cuando esa variable de entorno existe en
+        // el proyecto, así que exigimos el secreto siempre, sin excepción
+        // por método. Sin CRON_SECRET configurado, fallamos cerrado.
+        if (!cronSecret) {
+            return res.status(500).json({ status: 'error', message: 'CRON_SECRET no está configurado.' });
+        }
+        if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
             return res.status(401).json({ status: 'error', message: 'Cron Secret inválido o ausente' });
         }
 
@@ -196,6 +206,7 @@ const sendAlertsCron = async (req, res) => {
                 .slice(0, 8);
 
             if (becasMatch.length > 0) {
+                try {
                     await resend.emails.send({
                         from: 'BecaMax Alertas <alertas@becamax.es>',
                         to: destEmail,

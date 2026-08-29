@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { getFavorites, addFavorite, removeFavorite } = require('../controllers/favorites.controller');
+const { requireAuth, getFavorites, addFavorite, removeFavorite } = require('../controllers/favorites.controller');
+
+router.use(requireAuth);
 
 router.get('/',           getFavorites);
 router.post('/',          addFavorite);
