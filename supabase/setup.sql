@@ -17,10 +17,16 @@ CREATE TABLE IF NOT EXISTS perfiles (
 
 ALTER TABLE perfiles ENABLE ROW LEVEL SECURITY;
 
+-- NOTA (2026-08-29): usa public.is_admin() (definida en master_repair.sql /
+-- fix_rls.sql; debe ejecutarse antes que este archivo) en vez de la
+-- subconsulta directa contra perfiles. Esa subconsulta exige que CUALQUIER
+-- rol que toque esta tabla tenga GRANT de SELECT sobre perfiles -- ver
+-- grant_permissions.sql, que se lo quita a `anon` a propósito.
+DROP POLICY IF EXISTS "user_perfil_all" ON perfiles;
 CREATE POLICY "user_perfil_all" ON perfiles
   FOR ALL
-  USING (auth.uid() = user_id OR (SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin')
-  WITH CHECK (auth.uid() = user_id OR (SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin');
+  USING (auth.uid() = user_id OR public.is_admin())
+  WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
 -- Tabla principal de filtros guardados por usuario
 CREATE TABLE IF NOT EXISTS filtros_guardados (
@@ -39,10 +45,11 @@ CREATE INDEX IF NOT EXISTS idx_filtros_user ON filtros_guardados(user_id);
 ALTER TABLE filtros_guardados ENABLE ROW LEVEL SECURITY;
 
 -- Política: acceso completo solo al propietario o para administradores
+DROP POLICY IF EXISTS "owner_all" ON filtros_guardados;
 CREATE POLICY "owner_all" ON filtros_guardados
   FOR ALL
-  USING  (auth.uid() = user_id OR (SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin')
-  WITH CHECK (auth.uid() = user_id OR (SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin');
+  USING  (auth.uid() = user_id OR public.is_admin())
+  WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
 -- ============================================================
 -- Tabla de incidencias y soporte
@@ -60,14 +67,18 @@ CREATE TABLE IF NOT EXISTS incidencias (
 ALTER TABLE incidencias ENABLE ROW LEVEL SECURITY;
 
 -- Permitir a cualquier usuario (incluso anónimos) insertar una incidencia
+-- Esto es intencional: es el formulario público de soporte (incidencias.html),
+-- pensado para poder reportar un problema sin necesidad de tener cuenta.
+DROP POLICY IF EXISTS "Cualquiera puede insertar incidencias" ON incidencias;
 CREATE POLICY "Cualquiera puede insertar incidencias" ON incidencias
   FOR INSERT
   WITH CHECK (true);
 
 -- Solo el dueño o los administradores pueden ver/gestionar incidencias
+DROP POLICY IF EXISTS "Usuarios ven sus propias incidencias o admin ve todas" ON incidencias;
 CREATE POLICY "Usuarios ven sus propias incidencias o admin ve todas" ON incidencias
   FOR ALL
-  USING (auth.uid() = user_id  OR (SELECT rol FROM perfiles WHERE user_id = auth.uid()) = 'admin');
+  USING (auth.uid() = user_id OR public.is_admin());
 
 
 -- ============================================================

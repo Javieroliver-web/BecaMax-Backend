@@ -5,10 +5,21 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+// Vercel siempre corre detrás de su propio proxy/edge -- sin esto,
+// express-rate-limit (y cualquier lectura de req.ip) puede detectar mal la
+// IP real del cliente detrás de X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // 1. Seguridad de Cabeceras (Helmet)
 app.use(helmet());
 
 // 2. Limitador de peticiones (Rate Limit) - 100 peticiones cada 15 min por IP
+// NOTA: express-rate-limit usa por defecto un almacén en memoria (MemoryStore)
+// que NO persiste entre invocaciones de funciones serverless de Vercel --
+// cada invocación fría puede tener su propio contador, así que este límite
+// es una capa de mitigación básica, no una garantía dura contra abuso
+// distribuido. Los endpoints realmente sensibles (admin, favoritos, cron)
+// están protegidos además por autenticación, no solo por este limiter.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -17,11 +28,18 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // 3. CORS Restringido (Ajsutar origen según tu URL de Vercel)
-// Si FRONTEND_URL no está definida en el entorno, usamos el dominio de
-// producción conocido en vez de '*': un backend con auth por Bearer token
-// no debe caer abierto a cualquier origen por falta de una env var.
+// `origin` como función: solo refleja Access-Control-Allow-Origin cuando
+// coincide exactamente con el origen permitido, en vez de devolver siempre
+// un string fijo (que no validaba nada -- cualquier Origin recibía la misma
+// cabecera, aunque no le sirviera de nada sin poder forjar el Bearer token).
+const FRONTEND_ORIGIN = process.env.FRONTEND_URL || 'https://becamax.vercel.app';
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'https://becamax.vercel.app',
+  origin: (origin, callback) => {
+    // Peticiones sin Origin (curl, apps nativas, server-to-server) se permiten:
+    // no hay navegador de por medio que necesite CORS.
+    if (!origin || origin === FRONTEND_ORIGIN) return callback(null, true);
+    callback(null, false);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-client-info', 'apikey']
 };
