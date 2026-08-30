@@ -47,9 +47,9 @@ function buildEmailHTML(alerta, becasMatch) {
     const frontendUrl = process.env.FRONTEND_URL || 'https://becamax.vercel.app';
 
     const urgencyBadge = (dias) => {
-        if (dias <= 7)  return `<span style="background:#ef4444;color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;"> ${dias}d restantes</span>`;
-        if (dias <= 30) return `<span style="background:#f59e0b;color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;"> ${dias}d restantes</span>`;
-        return `<span style="background:#10b981;color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;"> ${dias}d restantes</span>`;
+        if (dias <= 7)  return `<span style="background:#ef4444;color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;">${dias}d restantes</span>`;
+        if (dias <= 30) return `<span style="background:#f59e0b;color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;">${dias}d restantes</span>`;
+        return `<span style="background:#10b981;color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;">${dias}d restantes</span>`;
     };
 
     const becaCards = becasMatch.map(b => {
@@ -219,7 +219,6 @@ const sendAlertsCron = async (req, res) => {
                         user_id: alerta.user_id,
                         titulo: `Nuevas becas: ${alerta.nombre}`,
                         texto: `Se han encontrado ${becasMatch.length} beca${becasMatch.length !== 1 ? 's' : ''} nueva${becasMatch.length !== 1 ? 's' : ''} para ti.`,
-                        icono: '',
                         url_destino: 'dashboard.html'
                     });
 
