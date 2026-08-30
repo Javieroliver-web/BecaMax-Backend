@@ -1,15 +1,25 @@
-// Utilizamos el global.fetch nativo de Node.js 18+ (Vercel ya utiliza versiones modernas).
+const { createClient } = require('@supabase/supabase-js');
 
-const enviarLogDiscord = async (req, res) => {
+const getSupabaseAdmin = () => {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Falta configuración de Supabase URL o Service Key en el entorno del servidor.');
+  }
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+};
+
+// Registra visitas a la home en system_logs (Supabase), visible en el panel
+// admin. Sustituye al envío anterior a un webhook de Discord: Discord no es
+// un encargado del tratamiento con el que tengamos un contrato de encargo
+// (DPA) real, así que los datos de acceso se quedan dentro de Supabase,
+// proveedor ya cubierto en la política de privacidad.
+const registrarVisita = async (req, res) => {
   try {
-    const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
-    if (!WEBHOOK_URL) {
-      return res.status(500).json({ status: 'error', message: 'Falta configurar DISCORD_WEBHOOK_URL en el backend.' });
-    }
-
     let { page, ts, country, city, ip, device, lang, screen, referrer } = req.body;
 
-    // 4. Validación básica de seguridad
     if (!page || typeof page !== 'string' || page.length > 200) {
       return res.status(400).json({ status: 'error', message: 'Datos de log inválidos o sospechosos.' });
     }
@@ -23,43 +33,34 @@ const enviarLogDiscord = async (req, res) => {
     if (!country || country === '—') country = serverCountry;
     if (!city || city === '—') city = serverCity;
 
-    const discordPayload = {
-      embeds: [{
-        title: ' Nuevo acceso — BecaMax',
-        color: 0x10b981,
-        fields: [
-          { name: ' Página',      value: '`' + (page || '/') + '`',         inline: true  },
-          { name: ' Fecha/Hora',  value: ts || '—',                         inline: true  },
-          { name: ' País / Ciudad', value: (country || '—') + ' · ' + (city || '—'), inline: false },
-          { name: ' IP',           value: '`' + (ip || '—') + '`',           inline: true  },
-          { name: (device === ' Móvil' ? ' Dispositivo' : ' Dispositivo'),
-                                   value: device || '—',                     inline: true  },
-          { name: ' Idioma',       value: lang || '—',                       inline: true  },
-          { name: ' Resolución',   value: screen || '—',                     inline: true  },
-          { name: ' Referrer',     value: referrer || '—',                   inline: false },
-        ],
-        footer: { text: 'BecaMax Access Logger · Sylphiette' },
-        timestamp: new Date().toISOString(),
-      }],
-    };
+    const details = [
+      `Página: ${page || '/'}`,
+      `Fecha: ${ts || '—'}`,
+      `País/Ciudad: ${(country || '—')} · ${(city || '—')}`,
+      `IP: ${ip || '—'}`,
+      `Dispositivo: ${device || '—'}`,
+      `Idioma: ${lang || '—'}`,
+      `Resolución: ${screen || '—'}`,
+      `Referrer: ${referrer || '—'}`,
+    ].join(' | ');
 
-    const response = await global.fetch(WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(discordPayload),
-    });
+    const supabaseAdmin = getSupabaseAdmin();
+    const { error } = await supabaseAdmin.from('system_logs').insert([{
+      admin_id: null,
+      user_id: null,
+      action: 'SITE_VISIT',
+      details,
+    }]);
 
-    if (!response.ok) {
-      throw new Error(`Discord API error: ${response.status}`);
-    }
+    if (error) throw error;
 
-    res.status(200).json({ status: 'success', message: 'Log enviado a Discord' });
+    res.status(200).json({ status: 'success', message: 'Log registrado' });
   } catch (error) {
-    console.error('Error enviando log a Discord:', error);
-    res.status(500).json({ status: 'error', message: 'Error interno del servidor enviando log' });
+    console.error('Error registrando log de visita:', error);
+    res.status(500).json({ status: 'error', message: 'Error interno del servidor registrando log' });
   }
 };
 
 module.exports = {
-  enviarLogDiscord
+  registrarVisita
 };
