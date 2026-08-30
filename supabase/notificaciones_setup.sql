@@ -39,3 +39,10 @@ CREATE POLICY "notificaciones_insert_own" ON public.notificaciones
 -- 6. Política: eliminar propias
 CREATE POLICY "notificaciones_delete_own" ON public.notificaciones
   FOR DELETE USING (auth.uid() = user_id);
+
+-- 7. GRANT base: sin esto RLS nunca llega a evaluarse, PostgREST devuelve
+-- "permission denied for table notificaciones" directamente. Mismo hueco
+-- que en favoritos_setup.sql, detectado y corregido en produccion el
+-- mismo dia (2026-08-30) -- la campana de notificaciones nunca pudo leer
+-- ni marcar como leida ninguna notificacion real hasta este GRANT.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notificaciones TO authenticated;

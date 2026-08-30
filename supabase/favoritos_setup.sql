@@ -38,3 +38,11 @@ CREATE POLICY "favoritos_delete_own" ON public.favoritos
 -- excepcion, solo devuelve un campo `error` que el codigo no comprobaba).
 CREATE POLICY "favoritos_update_own" ON public.favoritos
   FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- 5. GRANT base: sin esto RLS nunca llega a evaluarse, PostgREST devuelve
+-- "permission denied for table favoritos" directamente. Se detecto en
+-- produccion que este paso se habia omitido por completo desde que se
+-- creo la tabla -- favoritos nunca llego a guardar nada realmente hasta
+-- corregirlo (2026-08-30). Solo authenticated: es una funcion privada,
+-- igual que perfiles/filtros_guardados en grant_permissions.sql.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.favoritos TO authenticated;

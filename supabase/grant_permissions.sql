@@ -25,3 +25,17 @@ GRANT ALL PRIVILEGES ON TABLE public.filtros_guardados TO service_role;
 GRANT SELECT ON TABLE public.noticias TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.noticias TO authenticated;
 GRANT ALL PRIVILEGES ON TABLE public.noticias TO service_role;
+
+-- (2026-08-30) favoritos y notificaciones: mismo problema que dio nombre
+-- a este script ("permission denied for table X"), pero nunca se habian
+-- incluido aqui -- sus propios *_setup.sql solo creaban tabla + RLS, sin
+-- el GRANT base, asi que ninguna de las dos funciones llego a funcionar
+-- de verdad en produccion hasta detectarlo probando con una cuenta de
+-- usuario real. Ver tambien favoritos_setup.sql y notificaciones_setup.sql.
+REVOKE ALL PRIVILEGES ON TABLE public.favoritos FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.favoritos TO authenticated;
+GRANT ALL PRIVILEGES ON TABLE public.favoritos TO service_role;
+
+REVOKE ALL PRIVILEGES ON TABLE public.notificaciones FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notificaciones TO authenticated;
+GRANT ALL PRIVILEGES ON TABLE public.notificaciones TO service_role;
