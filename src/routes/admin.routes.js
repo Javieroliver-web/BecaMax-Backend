@@ -7,5 +7,6 @@ router.delete('/users/:id', adminController.deleteUser);
 
 // RUTA PARA PANEL DE NOTICIAS
 router.post('/news', adminController.postNews);
+router.delete('/news', adminController.deleteNews);
 
 module.exports = router;

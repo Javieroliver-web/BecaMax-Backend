@@ -145,7 +145,59 @@ const postNews = async (req, res) => {
   }
 };
 
+const deleteNews = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ status: 'error', message: 'Acceso denegado: Token no proporcionado' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // 1. Validar Token
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) {
+      return res.status(401).json({ status: 'error', message: 'Acceso denegado: Token inválido' });
+    }
+
+    // 2. Comprobar Admin
+    const { data: perfil, error: dbError } = await supabaseAdmin
+      .from('perfiles')
+      .select('rol')
+      .eq('user_id', user.id)
+      .single();
+
+    if (dbError || !perfil || perfil.rol !== 'admin') {
+      return res.status(403).json({ status: 'error', message: 'Prohibido: No eres administrador.' });
+    }
+
+    // 3. Borrar la(s) noticia(s) activa(s) -- en la práctica solo hay una,
+    // ver el auto-borrado al publicar en postNews().
+    const { error: deleteError } = await supabaseAdmin
+      .from('noticias')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+
+    if (deleteError) throw deleteError;
+
+    await supabaseAdmin.from('system_logs').insert([{
+      admin_id: user.id,
+      action: 'NEWS_DELETED',
+      details: 'Noticia global eliminada manualmente desde el panel de admin.'
+    }]);
+
+    res.status(200).json({ status: 'success' });
+
+  } catch (err) {
+    console.error('Error in deleteNews:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 module.exports = {
   deleteUser,
-  postNews
+  postNews,
+  deleteNews
 };
