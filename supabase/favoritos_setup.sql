@@ -30,3 +30,11 @@ CREATE POLICY "favoritos_insert_own" ON public.favoritos
 
 CREATE POLICY "favoritos_delete_own" ON public.favoritos
   FOR DELETE USING (auth.uid() = user_id);
+
+-- Sin esta politica, upsert() (INSERT ... ON CONFLICT DO UPDATE) falla:
+-- Postgres exige permiso de UPDATE para la clausula de conflicto aunque
+-- en la practica no haya ninguna fila que actualizar. Sin ella, la
+-- escritura se rechazaba en silencio (el cliente de Supabase no lanza
+-- excepcion, solo devuelve un campo `error` que el codigo no comprobaba).
+CREATE POLICY "favoritos_update_own" ON public.favoritos
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
