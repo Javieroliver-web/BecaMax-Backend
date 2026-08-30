@@ -23,6 +23,32 @@ function formatFecha(d) {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
+// La BDNS publica los titulos como el encabezado legal de la resolucion
+// (BOE): todo en mayusculas, a veces con saltos de linea y espacios dobles
+// incrustados. Usarlo tal cual como "nombre" de la beca queda roto en las
+// tarjetas y desentona con el resto del catalogo (ej. "Beca 6000"). Se
+// colapsa el espaciado, se pasa a capitalizacion normal cuando el texto es
+// predominantemente en mayusculas, y se trunca en un limite razonable para
+// una tarjeta/titulo, cortando en palabra completa.
+function limpiarNombre(texto) {
+  let limpio = (texto || '').replace(/\s+/g, ' ').trim();
+  if (!limpio) return limpio;
+
+  const letras = limpio.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+  const mayusculas = letras.replace(/[^A-ZÀ-Ý]/g, '');
+  if (letras.length > 0 && mayusculas.length / letras.length > 0.8) {
+    limpio = limpio.toLowerCase().replace(/(^|[\s\-–—/])([a-zà-ÿ])/g, (m, sep, c) => sep + c.toUpperCase());
+  }
+
+  const MAX = 140;
+  if (limpio.length > MAX) {
+    const corte = limpio.slice(0, MAX);
+    const ultimoEspacio = corte.lastIndexOf(' ');
+    limpio = (ultimoEspacio > 80 ? corte.slice(0, ultimoEspacio) : corte) + '…';
+  }
+  return limpio;
+}
+
 // =========================================================
 // 1. BÚSQUEDA: listar convocatorias candidatas (nivel nacional o Andalucía)
 // =========================================================
@@ -113,11 +139,11 @@ function mapearABeca(detalle, region) {
 
   if (!detalle.urlBasesReguladoras) return null; // sin fuente oficial verificable, se omite
 
-  const entidad = detalle.organo?.nivel3 || detalle.organo?.nivel2 || 'Administración Pública';
+  const entidad = limpiarNombre(detalle.organo?.nivel3 || detalle.organo?.nivel2 || 'Administración Pública');
 
   return {
     codigo_bdns: String(detalle.codigoBDNS),
-    nombre: detalle.descripcion.slice(0, 300),
+    nombre: limpiarNombre(detalle.descripcion),
     entidad,
     // La BDNS solo publica el presupuesto TOTAL de la convocatoria, no el
     // importe individual por beneficiario: mostrar ese total como si fuera
