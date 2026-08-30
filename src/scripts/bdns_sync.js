@@ -1,193 +1,37 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { syncBdns } = require('../services/bdnsSync.service');
 
-// 1. Inicializar Supabase con SERVICE ROLE KEY (salta RLS)
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const DIAS_HACIA_ATRAS = 365; // sync manual: barrido completo del último año
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error(' ERROR: Faltan las variables de entorno de Supabase.');
-  process.exit(1);
-}
+async function main() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// =========================================================
-// CONFIGURACIÓN
-// =========================================================
-const BDNS_BASE = 'https://www.infosubvenciones.es/bdnstrans/api';
-const KEYWORD = 'beca';
-const DIAS_HACIA_ATRAS = 365;   // ventana de búsqueda por fecha de recepción
-const PAGE_SIZE = 100;
-const MAX_PAGINAS_BUSQUEDA = 30; // salvaguarda: no pedir páginas indefinidamente
-const RETRASO_MS = 300;          // pausa entre peticiones para no abusar del API público
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function quitarAcentos(s) {
-  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
-}
-
-function formatFecha(d) {
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${dd}/${mm}/${d.getFullYear()}`;
-}
-
-// =========================================================
-// 1. BÚSQUEDA: listar convocatorias candidatas (nivel nacional o Andalucía)
-// =========================================================
-async function buscarCandidatas() {
-  const hoy = new Date();
-  const desde = new Date(hoy.getTime() - DIAS_HACIA_ATRAS * 86400000);
-
-  const candidatas = [];
-  let page = 0;
-  let totalPages = 1;
-
-  while (page < totalPages && page < MAX_PAGINAS_BUSQUEDA) {
-    const url = `${BDNS_BASE}/convocatorias/busqueda?descripcion=${encodeURIComponent(KEYWORD)}` +
-      `&fechaDesde=${formatFecha(desde)}&fechaHasta=${formatFecha(hoy)}` +
-      `&pageSize=${PAGE_SIZE}&page=${page}`;
-
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Búsqueda BDNS falló (página ${page}): HTTP ${res.status}`);
-    const data = await res.json();
-
-    totalPages = data.totalPages || 1;
-    for (const item of data.content || []) {
-      const nivel1 = item.nivel1;
-      const esAndalucia = quitarAcentos(item.nivel2).includes('ANDALUC');
-      const esNacional = nivel1 === 'ESTADO';
-      if (esNacional || esAndalucia) {
-        candidatas.push({ ...item, _region: esNacional ? 'Nacional' : 'Andalucía' });
-      }
-    }
-
-    page++;
-    await sleep(RETRASO_MS);
+  if (!supabaseUrl || !supabaseKey) {
+    console.error(' ERROR: Faltan las variables de entorno de Supabase.');
+    process.exit(1);
   }
 
-  return candidatas;
-}
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
-// =========================================================
-// 2. DETALLE: ampliar cada candidata con importe/fechas/url reales
-// =========================================================
-async function obtenerDetalle(numeroConvocatoria) {
-  const url = `${BDNS_BASE}/convocatorias?numConv=${encodeURIComponent(numeroConvocatoria)}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  return res.json();
-}
-
-// =========================================================
-// 3. CLASIFICACIÓN HEURÍSTICA (la BDNS no tiene un campo "tipo" equivalente)
-// =========================================================
-function clasificarTipo(texto) {
-  const t = quitarAcentos(texto);
-  if (/ERASMUS|MOVILIDAD|INTERCAMBIO/.test(t)) return 'movilidad';
-  if (/DOCTOR|INVESTIGA|FPI|PREDOCTORAL/.test(t)) return 'investigacion';
-  if (/MASTER|POSGRADO|POSTGRADO/.test(t)) return 'master';
-  if (/UNIVERSITAR|GRADO UNIVERSITARIO|UNIVERSIDAD/.test(t)) return 'universitaria';
-  if (/BACHILLERATO/.test(t)) return 'bachillerato';
-  if (/\bFP\b|FORMACION PROFESIONAL|CICLO FORMATIVO/.test(t)) return 'fp';
-  if (/PRIMARIA|COMEDOR|LIBROS ESCOLARES|INFANTIL/.test(t)) return 'primaria';
-  if (/ARTISTIC|CONSERVATORIO|MUSICA|DISEÑO|DISENO/.test(t)) return 'artistica';
-  if (/IDIOMA|INGLES|B1|B2|C1/.test(t)) return 'idiomas';
-  return 'formacion';
-}
-
-function clasificarArea(sectores) {
-  const desc = quitarAcentos((sectores || []).map((s) => s.descripcion).join(' '));
-  if (/CIENCIA|TECNOLOGIA|INVESTIGACION/.test(desc)) return 'Ciencia y Tecnología';
-  if (/ARTE|CULTURA/.test(desc)) return 'Arte y Diseño';
-  if (/EMPLEO|FORMACION PROFESIONAL/.test(desc)) return 'Formación Profesional';
-  if (/IDIOMA/.test(desc)) return 'Idiomas';
-  return 'Cualquier área';
-}
-
-// =========================================================
-// 4. MAPEO A LA FILA DE public.becas (esquema real de producción:
-//    id SERIAL, importe JSONB {min,max}, deadline DATE, etc.)
-// =========================================================
-function mapearABeca(detalle, region) {
-  if (!detalle) return null;
-  // OJO: el flag "abierto" de la BDNS no es fiable como señal de vigencia
-  // (en la práctica aparece en false incluso para convocatorias con una
-  // fechaFinSolicitud real todavía futura); el único dato que importa es
-  // si el plazo de solicitud estructurado sigue vigente.
-  if (!detalle.fechaFinSolicitud) return null; // sin fecha real, no la mostramos
-
-  const deadline = detalle.fechaFinSolicitud.slice(0, 10);
-  if (new Date(deadline) < new Date(new Date().toDateString())) return null; // ya cerrada
-
-  if (!detalle.urlBasesReguladoras) return null; // sin fuente oficial verificable, se omite
-
-  const entidad = detalle.organo?.nivel3 || detalle.organo?.nivel2 || 'Administración Pública';
-
-  return {
-    codigo_bdns: String(detalle.codigoBDNS),
-    nombre: detalle.descripcion.slice(0, 300),
-    entidad,
-    // La BDNS solo publica el presupuesto TOTAL de la convocatoria, no el
-    // importe individual por beneficiario: mostrar ese total como si fuera
-    // la cuantía de una beca induciría a error. Se deja en null (el
-    // frontend ya muestra "Consultar" cuando importe es null) y se remite
-    // a las bases oficiales.
-    importe: null,
-    deadline,
-    url: detalle.urlBasesReguladoras,
-    descripcion: (detalle.descripcionFinalidad ? `${detalle.descripcionFinalidad}. ` : '') +
-      'Importe y requisitos exactos en las bases reguladoras oficiales.',
-    tipo: clasificarTipo(detalle.descripcion),
-    region,
-    area: clasificarArea(detalle.sectores),
-    etiquetas: ['bdns', region === 'Nacional' ? 'nacional' : 'andalucia'],
-    requisitos: ['Consulta los requisitos completos en las bases reguladoras oficiales (enlace de la beca).'],
-    updated_at: new Date().toISOString()
-  };
-}
-
-// =========================================================
-// 5. SINCRONIZACIÓN CON SUPABASE (UPSERT por codigo_bdns)
-// =========================================================
-async function sync() {
   try {
     console.log(' Buscando convocatorias de becas en la BDNS (nacional + Andalucía)...');
-    const candidatas = await buscarCandidatas();
-    console.log(` ${candidatas.length} convocatorias candidatas encontradas. Consultando detalle...`);
+    const resultado = await syncBdns(DIAS_HACIA_ATRAS, supabase);
 
-    const becas = [];
-    for (const c of candidatas) {
-      const detalle = await obtenerDetalle(c.numeroConvocatoria);
-      const beca = mapearABeca(detalle, c._region);
-      if (beca) becas.push(beca);
-      await sleep(RETRASO_MS);
+    console.log(` ${resultado.candidatas} convocatorias candidatas encontradas.`);
+    console.log(` ${resultado.becasEncontradas} becas abiertas y con datos completos. Sincronizando con Supabase...`);
+
+    for (const err of resultado.errores) {
+      console.error(` Error insertando beca [${err.codigo_bdns}]:`, err.error);
     }
 
-    console.log(` ${becas.length} becas abiertas y con datos completos. Sincronizando con Supabase...`);
-
-    let ok = 0, fallos = 0;
-    for (const beca of becas) {
-      const { error } = await supabase
-        .from('becas')
-        .upsert(beca, { onConflict: 'codigo_bdns' });
-
-      if (error) {
-        fallos++;
-        console.error(` Error insertando beca [${beca.codigo_bdns}]:`, error.message);
-      } else {
-        ok++;
-      }
-    }
-
-    console.log(` Sincronización completada: ${ok} becas actualizadas, ${fallos} fallos.`);
-    process.exit(fallos > 0 && ok === 0 ? 1 : 0);
+    console.log(` Sincronización completada: ${resultado.ok} becas actualizadas, ${resultado.fallos} fallos.`);
+    process.exit(resultado.fallos > 0 && resultado.ok === 0 ? 1 : 0);
   } catch (error) {
     console.error(' Error fatal en el sincronizador:', error);
     process.exit(1);
   }
 }
 
-sync();
+main();

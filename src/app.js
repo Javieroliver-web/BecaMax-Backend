@@ -44,12 +44,14 @@ const logsRoutes      = require('./routes/logs.routes');
 const adminRoutes     = require('./routes/admin.routes');
 const alertsRoutes    = require('./routes/alerts.routes');
 const favoritesRoutes = require('./routes/favorites.routes');
+const bdnsRoutes      = require('./routes/bdns.routes');
 
 app.use('/api/becas',     becasRoutes);
 app.use('/api/logs',      logsRoutes);
 app.use('/api/admin',     adminRoutes);
 app.use('/api/alerts',    alertsRoutes);
 app.use('/api/favorites', favoritesRoutes);
+app.use('/api/bdns',      bdnsRoutes);
 
 // Rutas de prueba
 app.get('/api/ping', (req, res) => {

@@ -14,6 +14,10 @@
   ],
   "crons": [
     {
+      "path": "/api/bdns/process_cron",
+      "schedule": "0 6 * * *"
+    },
+    {
       "path": "/api/alerts/process_cron",
       "schedule": "0 7 * * *"
     }
