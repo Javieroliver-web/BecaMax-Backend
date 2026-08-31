@@ -30,9 +30,24 @@ function formatFecha(d) {
 // colapsa el espaciado, se pasa a capitalizacion normal cuando el texto es
 // predominantemente en mayusculas, y se trunca en un limite razonable para
 // una tarjeta/titulo, cortando en palabra completa.
-function limpiarNombre(texto) {
+function limpiarNombre(texto, esNombre = false) {
   let limpio = (texto || '').replace(/\s+/g, ' ').trim();
   if (!limpio) return limpio;
+
+  // Los titulos de resolucion de la BDNS suelen seguir el patron
+  // "Resolución de/del X por la que se convoca(n)/aprueba(n)/concede(n) Y"
+  // -- Y suele ser un nombre bastante mas corto y legible que el titulo
+  // legal completo (ej. "las becas del Instituto de Turismo de España" en
+  // vez de la resolucion entera). Solo se aplica al campo `nombre` (no a
+  // `entidad`, que ya es corto de por si), y solo cuando el patron aparece
+  // con claridad -- si no encaja, se deja el texto tal cual, nunca se
+  // arriesga a mutilarlo mal para un formato que no se ha visto en pruebas.
+  if (esNombre) {
+    const m = limpio.match(/\bpor\s+la\s+que\s+se\s+(?:convocan?|aprueban?|conceden?)\s+(.+)/i);
+    if (m && m[1] && m[1].trim().length > 15) {
+      limpio = m[1].trim();
+    }
+  }
 
   const letras = limpio.replace(/[^a-zA-ZÀ-ÿ]/g, '');
   const mayusculas = letras.replace(/[^A-ZÀ-Ý]/g, '');
@@ -143,7 +158,7 @@ function mapearABeca(detalle, region) {
 
   return {
     codigo_bdns: String(detalle.codigoBDNS),
-    nombre: limpiarNombre(detalle.descripcion),
+    nombre: limpiarNombre(detalle.descripcion, true),
     entidad,
     // La BDNS solo publica el presupuesto TOTAL de la convocatoria, no el
     // importe individual por beneficiario: mostrar ese total como si fuera
