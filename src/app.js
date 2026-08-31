@@ -33,7 +33,13 @@ const corsOptions = {
     callback(null, false);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-client-info', 'apikey', 'Prefer'],
+  // Sin lista fija: supabase-js manda cabeceras propias (accept-profile,
+  // content-profile, x-retry-count...) que van cambiando entre versiones --
+  // una lista fija se queda desactualizada y el navegador bloquea el
+  // preflight antes de que la peticion llegue al servidor (bug real
+  // encontrado en produccion: rompia perfil/favoritos/alertas por completo).
+  // Sin `allowedHeaders`, el paquete `cors` refleja automaticamente lo que
+  // el propio preflight del navegador pide en Access-Control-Request-Headers.
   exposedHeaders: ['Content-Range'],
   // Necesario para que el navegador envie/reciba las cookies httpOnly de
   // sesion: sin esto, el fetch del frontend con credentials:'include' no
