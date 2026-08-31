@@ -14,12 +14,13 @@ app.set('trust proxy', 1);
 // 1. Seguridad de Cabeceras (Helmet)
 app.use(helmet());
 
-// 2. Limitador de peticiones - 100 peticiones cada 15 min por IP.
-// Usa Upstash Redis (compartido entre invocaciones serverless) si está
-// configurado; si no, cae a un limiter en memoria. Ver middleware/rateLimiter.js.
-app.use(limiter);
-
-// 3. CORS Restringido (Ajsutar origen según tu URL de Vercel)
+// 2. CORS Restringido (Ajsutar origen según tu URL de Vercel)
+// Va ANTES del rate limiter a propósito: si el limiter corriera primero,
+// una petición rechazada con 429 nunca llegaría a pasar por este
+// middleware, así que su respuesta saldría sin cabeceras CORS -- el
+// navegador lo ve como un opaco "Failed to fetch" en vez de un 429 con
+// mensaje claro (bug real encontrado en producción, con el rate limit
+// agotado de verdad por trafico de pruebas).
 // `origin` como función: solo refleja Access-Control-Allow-Origin cuando
 // coincide exactamente con el origen permitido, en vez de devolver siempre
 // un string fijo (que no validaba nada -- cualquier Origin recibía la misma
@@ -47,6 +48,11 @@ const corsOptions = {
   credentials: true
 };
 app.use(cors(corsOptions));
+
+// 3. Limitador de peticiones - 100 peticiones cada 15 min por IP.
+// Usa Upstash Redis (compartido entre invocaciones serverless) si está
+// configurado; si no, cae a un limiter en memoria. Ver middleware/rateLimiter.js.
+app.use(limiter);
 
 app.use(cookieParser());
 app.use(express.json());
