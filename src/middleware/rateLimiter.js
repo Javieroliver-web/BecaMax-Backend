@@ -25,7 +25,7 @@ function buildLimiter() {
             (req, res, next) => { res.setHeader('X-RateLimit-Backend', 'memory'); next(); },
             rateLimit({
                 windowMs: 15 * 60 * 1000,
-                max: 100,
+                max: 300,
                 message: { status: 'error', message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.' }
             })
         ];
@@ -37,7 +37,7 @@ function buildLimiter() {
     const redis = new Redis({ url, token });
     const ratelimit = new Ratelimit({
         redis,
-        limiter: Ratelimit.slidingWindow(100, '15 m'),
+        limiter: Ratelimit.slidingWindow(300, '15 m'),
         analytics: true,
         prefix: 'becamax-ratelimit'
     });

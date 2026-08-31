@@ -49,7 +49,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// 3. Limitador de peticiones - 100 peticiones cada 15 min por IP.
+// 3. Limitador de peticiones - 300 peticiones cada 15 min por IP.
 // Usa Upstash Redis (compartido entre invocaciones serverless) si está
 // configurado; si no, cae a un limiter en memoria. Ver middleware/rateLimiter.js.
 app.use(limiter);
