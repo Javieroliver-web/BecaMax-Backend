@@ -8,6 +8,28 @@ const initSupabaseAdmin = () => {
     });
 };
 
+// Los datos de becas pueden venir del scraping de BDNS (fuente semi-externa);
+// se interpolan en el HTML de un email real, así que se escapan igual que ya
+// se hace en el frontend para los mismos campos.
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function safeUrl(url) {
+    if (!url || typeof url !== 'string') return '#';
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return escapeHtml(url);
+    } catch (e) { /* URL inválida */ }
+    return '#';
+}
+
 function diasRestantes(deadline) {
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     const fin = new Date(deadline);
@@ -65,13 +87,13 @@ function buildEmailHTML(alerta, becasMatch) {
         <div style="background:#1a1a2e;border:1px solid #2d2d4e;border-radius:12px;padding:20px;margin-bottom:16px;">
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
             <td style="vertical-align:top;">
-              <div style="font-size:13px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">${b.tipo || 'Beca'}</div>
-              <div style="font-size:17px;font-weight:700;color:#f9fafb;line-height:1.3;">${b.nombre}</div>
-              <div style="font-size:13px;color:#9ca3af;margin-top:3px;">${b.entidad}</div>
+              <div style="font-size:13px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">${escapeHtml(b.tipo || 'Beca')}</div>
+              <div style="font-size:17px;font-weight:700;color:#f9fafb;line-height:1.3;">${escapeHtml(b.nombre)}</div>
+              <div style="font-size:13px;color:#9ca3af;margin-top:3px;">${escapeHtml(b.entidad)}</div>
             </td>
             <td style="vertical-align:top;text-align:right;white-space:nowrap;padding-left:12px;">${urgencyBadge(dias)}</td>
           </tr></table>
-          <p style="font-size:13px;color:#9ca3af;line-height:1.6;margin:12px 0 14px;">${b.descripcion ? b.descripcion.substring(0, 180) + '\u2026' : ''}</p>
+          <p style="font-size:13px;color:#9ca3af;line-height:1.6;margin:12px 0 14px;">${b.descripcion ? escapeHtml(b.descripcion.substring(0, 180)) + '\u2026' : ''}</p>
           <table cellpadding="0" cellspacing="0" style="margin-bottom:16px;"><tr>
             <td style="padding-right:24px;">
               <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Importe</div>
@@ -82,7 +104,7 @@ function buildEmailHTML(alerta, becasMatch) {
               <div style="font-size:14px;font-weight:600;color:#f9fafb;">${fechaStr}</div>
             </td>
           </tr></table>
-          <a href="${b.url}" style="display:inline-block;background:linear-gradient(135deg,#10b981,#059669);color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;">Ver beca oficial \u2197</a>
+          <a href="${safeUrl(b.url)}" style="display:inline-block;background:linear-gradient(135deg,#10b981,#059669);color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;">Ver beca oficial \u2197</a>
         </div>`;
     }).join('');
 
@@ -112,7 +134,7 @@ function buildEmailHTML(alerta, becasMatch) {
   <tr><td style="background:#12122a;padding:32px;text-align:center;border-left:1px solid #1e1e3a;border-right:1px solid #1e1e3a;">
     <div style="font-size:40px;margin-bottom:12px;">\uD83C\uDFAF</div>
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#f9fafb;">Tienes ${becasMatch.length} beca${becasMatch.length !== 1 ? 's' : ''} nueva${becasMatch.length !== 1 ? 's' : ''}</h1>
-    <p style="margin:0;font-size:15px;color:#9ca3af;line-height:1.6;">Coincidencias para tu alerta <strong style="color:#10b981;">"${alerta.nombre}"</strong></p>
+    <p style="margin:0;font-size:15px;color:#9ca3af;line-height:1.6;">Coincidencias para tu alerta <strong style="color:#10b981;">"${escapeHtml(alerta.nombre)}"</strong></p>
   </td></tr>
 
   <!-- BECAS -->

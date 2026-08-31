@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { attachUser, requireAuth } = require('../middleware/cookieAuth');
+const { requireFetchHeader } = require('../middleware/requireFetchHeader');
 
 router.use(attachUser);
+router.use(requireFetchHeader);
 
 router.post('/register', authController.register);
 router.post('/resend', authController.resendConfirmation);

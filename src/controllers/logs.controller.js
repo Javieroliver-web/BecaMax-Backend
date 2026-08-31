@@ -24,6 +24,20 @@ const registrarVisita = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Datos de log inválidos o sospechosos.' });
     }
 
+    // Capar longitud de campos opcionales: no se validan más allá de esto
+    // (la inserción es parametrizada, sin riesgo de inyección), pero sin
+    // límite un cliente malicioso podría enviar payloads arbitrariamente
+    // grandes y abusar del almacenamiento de system_logs.
+    const cap = (v, max) => (typeof v === 'string' ? v.slice(0, max) : v);
+    ts = cap(ts, 40);
+    country = cap(country, 60);
+    city = cap(city, 60);
+    ip = cap(ip, 45); // IPv6 máx 45 caracteres
+    device = cap(device, 60);
+    lang = cap(lang, 20);
+    screen = cap(screen, 20);
+    referrer = cap(referrer, 300);
+
     // Usar cabeceras de Vercel como fuente de verdad infalible (los adblockers bloquean la API del frontend)
     const serverIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     const serverCountry = req.headers['x-vercel-ip-country'] || 'Desconocido';
