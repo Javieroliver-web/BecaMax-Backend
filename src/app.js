@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const limiter = require('./middleware/rateLimiter');
 
 const app = express();
@@ -31,11 +32,17 @@ const corsOptions = {
     if (!origin || origin === FRONTEND_ORIGIN) return callback(null, true);
     callback(null, false);
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-client-info', 'apikey']
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-client-info', 'apikey', 'Prefer'],
+  exposedHeaders: ['Content-Range'],
+  // Necesario para que el navegador envie/reciba las cookies httpOnly de
+  // sesion: sin esto, el fetch del frontend con credentials:'include' no
+  // sirve de nada aunque el backend ponga Set-Cookie.
+  credentials: true
 };
 app.use(cors(corsOptions));
 
+app.use(cookieParser());
 app.use(express.json());
 
 // Routes
@@ -44,12 +51,18 @@ const logsRoutes      = require('./routes/logs.routes');
 const adminRoutes     = require('./routes/admin.routes');
 const alertsRoutes    = require('./routes/alerts.routes');
 const bdnsRoutes      = require('./routes/bdns.routes');
+const authRoutes      = require('./routes/auth.routes');
+const dbRoutes        = require('./routes/db.routes');
+const storageRoutes   = require('./routes/storage.routes');
 
 app.use('/api/becas',     becasRoutes);
 app.use('/api/logs',      logsRoutes);
 app.use('/api/admin',     adminRoutes);
 app.use('/api/alerts',    alertsRoutes);
 app.use('/api/bdns',      bdnsRoutes);
+app.use('/api/auth',      authRoutes);
+app.use('/api/db',        dbRoutes);
+app.use('/api/storage',   storageRoutes);
 
 // Rutas de prueba
 app.get('/api/ping', (req, res) => {

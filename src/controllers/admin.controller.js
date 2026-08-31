@@ -14,13 +14,12 @@ const getSupabaseAdmin = () => {
 const deleteUser = async (req, res) => {
   try {
     const userIdToDelete = req.params.id;
-    const authHeader = req.headers.authorization;
+    const token = req.cookies?.['sb-access-token'];
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       return res.status(401).json({ status: 'error', message: 'Acceso denegado: Token no proporcionado' });
     }
-    
-    const token = authHeader.split(' ')[1];
+
     const supabaseAdmin = getSupabaseAdmin();
     
     // 1. Validar Token JWT contra Supabase (asegurar de que el peticionario sea quien dice ser)
@@ -73,17 +72,16 @@ const deleteUser = async (req, res) => {
 const postNews = async (req, res) => {
   try {
     const { content, expiration } = req.body;
-    const authHeader = req.headers.authorization;
+    const token = req.cookies?.['sb-access-token'];
 
     if (!content) {
       return res.status(400).json({ status: 'error', message: 'El contenido de la noticia es obligatorio.' });
     }
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       return res.status(401).json({ status: 'error', message: 'Acceso denegado: Token no proporcionado' });
     }
-    
-    const token = authHeader.split(' ')[1];
+
     const supabaseAdmin = getSupabaseAdmin();
     
     // 1. Validar Token
@@ -147,13 +145,12 @@ const postNews = async (req, res) => {
 
 const deleteNews = async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = req.cookies?.['sb-access-token'];
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       return res.status(401).json({ status: 'error', message: 'Acceso denegado: Token no proporcionado' });
     }
 
-    const token = authHeader.split(' ')[1];
     const supabaseAdmin = getSupabaseAdmin();
 
     // 1. Validar Token
