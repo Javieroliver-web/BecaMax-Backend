@@ -25,7 +25,7 @@ function urgencia(dias) {
     return 'disponible';
 }
 
-function aplicarFiltros(becas, { busqueda, tipo, region, area, importeMin, importeMax, plazo }) {
+function aplicarFiltros(becas, { busqueda, tipo, region, area, importeMin, importeMax, plazo, edad, renta }) {
     return becas.filter(b => {
         const dias = diasRestantes(b.deadline);
         const u = urgencia(dias);
@@ -35,6 +35,12 @@ function aplicarFiltros(becas, { busqueda, tipo, region, area, importeMin, impor
         if (area && b.area !== area && b.area !== 'Cualquier área') return false;
         if (importeMin !== null && b.importe && b.importe.max < importeMin) return false;
         if (importeMax !== null && b.importe && b.importe.min > importeMax) return false;
+        // Solo excluye cuando la beca SI tiene un umbral conocido y el
+        // usuario lo incumple -- si la beca no tiene edad_min/edad_max/
+        // renta_max (la mayoria, son datos escasos), no se oculta por esto.
+        if (edad !== null && b.edad_min != null && edad < Number(b.edad_min)) return false;
+        if (edad !== null && b.edad_max != null && edad > Number(b.edad_max)) return false;
+        if (renta !== null && b.renta_max != null && renta > Number(b.renta_max)) return false;
 
         if (plazo === 'urgente' && u !== 'urgente') return false;
         if (plazo === 'proximo' && u !== 'proximo') return false;
@@ -81,6 +87,8 @@ const getBecas = async (req, res) => {
 
         const importeMin = req.query.importeMin ? Number(req.query.importeMin) : null;
         const importeMax = req.query.importeMax ? Number(req.query.importeMax) : null;
+        const edad       = req.query.edad  ? Number(req.query.edad)  : null;
+        const renta      = req.query.renta ? Number(req.query.renta) : null;
         const pageNum    = Math.max(1, parseInt(page));
         const limitNum   = Math.min(100, Math.max(1, parseInt(limit)));
 
@@ -100,7 +108,7 @@ const getBecas = async (req, res) => {
         }
 
         // 3. Aplicar filtros
-        const filtros = { busqueda, tipo, region, area, importeMin, importeMax, plazo };
+        const filtros = { busqueda, tipo, region, area, importeMin, importeMax, plazo, edad, renta };
         const filtradas = aplicarFiltros(todasLasBecas, filtros);
 
         // 4. Aplicar ordenación
