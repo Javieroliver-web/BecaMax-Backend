@@ -1,5 +1,6 @@
 const { getSupabaseAnon, getSupabaseAsUser } = require('../config/supabaseAnon');
 const { setAuthCookies, clearAuthCookies, REFRESH_COOKIE } = require('../utils/authCookies');
+const { withTimeout } = require('../utils/withTimeout');
 
 // ── Registro ───────────────────────────────────────────────────
 async function register(req, res) {
@@ -36,7 +37,9 @@ async function login(req, res) {
   try {
     const { email, password, captchaToken } = req.body;
     const anon = getSupabaseAnon();
-    const { data, error } = await anon.auth.signInWithPassword({ email, password, options: { captchaToken } });
+    const { data, error } = await withTimeout(
+      anon.auth.signInWithPassword({ email, password, options: { captchaToken } }), 8000, 'auth.signInWithPassword()'
+    );
     if (error) return res.status(400).json({ status: 'error', message: error.message });
 
     // Verificacion de bloqueo (misma comprobacion que antes hacia auth.js
@@ -78,7 +81,7 @@ async function logout(req, res) {
   try {
     if (req.accessToken) {
       const asUser = getSupabaseAsUser(req.accessToken);
-      await asUser.auth.signOut().catch(() => {}); // best-effort: revocar aunque falle, igual limpiamos cookies
+      await withTimeout(asUser.auth.signOut(), 8000, 'auth.signOut()').catch(() => {}); // best-effort: revocar aunque falle, igual limpiamos cookies
     }
   } finally {
     clearAuthCookies(res);
@@ -98,11 +101,17 @@ async function getSession(req, res) {
     // en segundo plano (el frontend ya no puede hacerlo el mismo).
     const refreshToken = req.cookies?.[REFRESH_COOKIE];
     if (refreshToken) {
-      const anon = getSupabaseAnon();
-      const { data, error } = await anon.auth.refreshSession({ refresh_token: refreshToken });
-      if (!error && data.session) {
-        setAuthCookies(res, data.session);
-        return res.json({ data: { session: { user: data.user } }, error: null });
+      try {
+        const anon = getSupabaseAnon();
+        const { data, error } = await withTimeout(
+          anon.auth.refreshSession({ refresh_token: refreshToken }), 8000, 'auth.refreshSession()'
+        );
+        if (!error && data.session) {
+          setAuthCookies(res, data.session);
+          return res.json({ data: { session: { user: data.user } }, error: null });
+        }
+      } catch (refreshErr) {
+        console.error('[getSession] Fallo refrescando la sesion (timeout o error de Supabase Auth):', refreshErr.message);
       }
     }
 
@@ -117,7 +126,7 @@ async function getSession(req, res) {
 async function updateUser(req, res) {
   try {
     const asUser = getSupabaseAsUser(req.accessToken);
-    const { data, error } = await asUser.auth.updateUser(req.body);
+    const { data, error } = await withTimeout(asUser.auth.updateUser(req.body), 8000, 'auth.updateUser()');
     if (error) return res.status(400).json({ status: 'error', message: error.message });
     res.json({ data, error: null });
   } catch (err) {

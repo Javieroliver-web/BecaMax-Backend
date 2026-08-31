@@ -1,5 +1,6 @@
 const { getSupabaseAsUser } = require('../config/supabaseAnon');
 const { ACCESS_COOKIE } = require('../utils/authCookies');
+const { withTimeout } = require('../utils/withTimeout');
 
 // Adjunta req.user/req.accessToken si la cookie de sesion es valida, pero
 // NUNCA bloquea la peticion por si sola (hay rutas, como insertar una
@@ -11,11 +12,12 @@ async function attachUser(req, res, next) {
 
   try {
     const client = getSupabaseAsUser(token);
-    const { data: { user }, error } = await client.auth.getUser(token);
+    const { data: { user }, error } = await withTimeout(client.auth.getUser(token), 8000, 'auth.getUser()');
     if (error || !user) { req.user = null; req.accessToken = null; return next(); }
     req.user = user;
     req.accessToken = token;
   } catch (e) {
+    console.error('[attachUser] Fallo verificando el token (timeout o error de Supabase Auth):', e.message);
     req.user = null;
     req.accessToken = null;
   }
