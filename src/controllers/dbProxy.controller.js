@@ -5,7 +5,8 @@
 // igual que antes, este backend no reimplementa ninguna regla de permisos.
 const ALLOWED_PREFIXES = [
   'perfiles', 'favoritos', 'filtros_guardados', 'notificaciones',
-  'incidencias', 'system_logs', 'noticias', 'rpc/delete_my_account'
+  'incidencias', 'system_logs', 'noticias', 'eventos_embudo',
+  'rpc/delete_my_account'
 ];
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
