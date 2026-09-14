@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { syncBdns } = require('../services/bdnsSync.service');
+const { notifyDiscord } = require('../utils/discordAlert');
 
 const initSupabaseAdmin = () =>
     createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
@@ -20,6 +21,7 @@ const syncBdnsCron = async (req, res) => {
         // una petición de Vercel Cron y un curl anónimo por método HTTP, así
         // que el secreto se exige siempre, sin excepción.
         if (!cronSecret) {
+            await notifyDiscord('Cron BDNS: CRON_SECRET no está configurado, la sincronización no se ejecuta');
             return res.status(500).json({ status: 'error', message: 'CRON_SECRET no está configurado.' });
         }
         if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
@@ -32,6 +34,7 @@ const syncBdnsCron = async (req, res) => {
         res.status(200).json({ status: 'success', message: 'Sincronización BDNS completada', ...resultado });
     } catch (error) {
         console.error('[Cron BDNS] Error:', error);
+        await notifyDiscord('Cron BDNS: la sincronización diaria de becas ha fallado', { error });
         res.status(500).json({ status: 'error', message: error.message || 'Error interno' });
     }
 };

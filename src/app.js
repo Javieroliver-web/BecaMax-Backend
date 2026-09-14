@@ -89,4 +89,21 @@ app.use((req, res) => {
   res.status(404).json({ status: 'error', message: 'Ruta no encontrada' });
 });
 
+// Errores no controlados en cualquier ruta (Express 5 también recoge aquí los
+// rechazos de funciones async). Sin esto, Express respondía su página HTML de
+// error y el fallo solo quedaba en los logs de Vercel, que nadie mira.
+const { notifyDiscord } = require('./utils/discordAlert');
+// eslint-disable-next-line no-unused-vars
+app.use(async (err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  // Los 4xx los provoca el cliente (JSON mal formado, cuerpo demasiado grande...):
+  // se responden, pero no se avisa, o cualquiera podría llenar el canal.
+  if (status >= 500) {
+    console.error('[Error no controlado]', req.method, req.path, err);
+    await notifyDiscord(`API: error no controlado en ${req.method} ${req.path}`, { error: err });
+  }
+  if (res.headersSent) return;
+  res.status(status).json({ status: 'error', message: status >= 500 ? 'Error interno del servidor' : 'Petición no válida' });
+});
+
 module.exports = app;

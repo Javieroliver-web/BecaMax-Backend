@@ -1,6 +1,7 @@
 const { Resend } = require('resend');
 const { createClient } = require('@supabase/supabase-js');
 const BECAS_ESTATICAS = require('../data/becas');
+const { notifyDiscord } = require('../utils/discordAlert');
 
 const initSupabaseAdmin = () => {
     return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
@@ -173,6 +174,7 @@ const sendAlertsCron = async (req, res) => {
         // el proyecto, así que exigimos el secreto siempre, sin excepción
         // por método. Sin CRON_SECRET configurado, fallamos cerrado.
         if (!cronSecret) {
+            await notifyDiscord('Cron de alertas: CRON_SECRET no está configurado, no se envían alertas');
             return res.status(500).json({ status: 'error', message: 'CRON_SECRET no está configurado.' });
         }
         if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
@@ -181,6 +183,7 @@ const sendAlertsCron = async (req, res) => {
 
         const resendApiKey = process.env.RESEND_API_KEY;
         if (!resendApiKey) {
+            await notifyDiscord('Cron de alertas: RESEND_API_KEY no está definida, no se envían alertas');
             return res.status(500).json({ status: 'error', message: 'RESEND_API_KEY no está definida.' });
         }
         const resend = new Resend(resendApiKey);
@@ -253,10 +256,21 @@ const sendAlertsCron = async (req, res) => {
             }
         }
 
+        // Emails que Resend rechazó: se avisa con el recuento y el primer error
+        // (sin las direcciones de los usuarios, que no deben acabar en Discord).
+        const fallidos = resumenLogs.filter(r => r.status === 'error');
+        if (fallidos.length > 0) {
+            await notifyDiscord(`Cron de alertas: ${fallidos.length} de ${fallidos.length + emailsEnviados} emails no se han podido enviar`, {
+                error: fallidos[0].error,
+                fields: { 'Errores distintos': [...new Set(fallidos.map(f => f.error))].join('\n') }
+            });
+        }
+
         res.status(200).json({ status: 'success', message: 'Cron finalizado', emailsEnviados, resumenLogs });
 
     } catch (error) {
         console.error('[Cron] Error total:', error);
+        await notifyDiscord('Cron de alertas: ha fallado entero, no se ha enviado ninguna alerta', { error });
         res.status(500).json({ status: 'error', message: error.message || 'Error interno' });
     }
 };
