@@ -32,4 +32,19 @@ function getSupabaseAsUser(accessToken) {
   });
 }
 
-module.exports = { getSupabaseAnon, getSupabaseAsUser };
+// Cliente para el login con Google (OAuth con PKCE hecho en el servidor).
+// `storage` es un almacen propio en memoria que el controlador vuelca a una
+// cookie: supabase-js guarda ahi el code verifier al iniciar el flujo y lo
+// vuelve a leer al canjear el codigo. Ojo: con persistSession:false la
+// libreria ignora el storage propio y usa uno interno, por eso va a true
+// (no hay nada que persistir de verdad: el storage muere con la peticion).
+function getSupabasePkce(storage) {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Falta SUPABASE_URL o SUPABASE_ANON_KEY en el entorno del servidor.');
+  }
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { flowType: 'pkce', autoRefreshToken: false, persistSession: true, detectSessionInUrl: false, storage }
+  });
+}
+
+module.exports = { getSupabaseAnon, getSupabaseAsUser, getSupabasePkce };

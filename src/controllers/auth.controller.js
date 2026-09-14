@@ -1,6 +1,23 @@
-const { getSupabaseAnon, getSupabaseAsUser } = require('../config/supabaseAnon');
+const { getSupabaseAnon, getSupabaseAsUser, getSupabasePkce } = require('../config/supabaseAnon');
 const { setAuthCookies, clearAuthCookies, REFRESH_COOKIE } = require('../utils/authCookies');
 const { withTimeout } = require('../utils/withTimeout');
+
+const FRONTEND_ORIGIN = process.env.FRONTEND_URL || 'https://becamax.vercel.app';
+const PKCE_COOKIE = 'sb-google-pkce';
+
+// Cuenta bloqueada por la administracion: revoca la sesion recien creada y
+// devuelve true. Compartido por el login con contraseña y el de Google.
+async function revokeIfBlocked(session, user) {
+  const asUser = getSupabaseAsUser(session.access_token);
+  const { data: perfil } = await asUser.from('perfiles').select('estado').eq('user_id', user.id).single();
+  if (perfil && perfil.estado === 'bloqueado') {
+    // signOut() con este cliente envia el Authorization: Bearer de esta
+    // sesion concreta al endpoint de logout de GoTrue, sin auth.setSession().
+    await asUser.auth.signOut();
+    return true;
+  }
+  return false;
+}
 
 // ── Registro ───────────────────────────────────────────────────
 async function register(req, res) {
@@ -45,14 +62,7 @@ async function login(req, res) {
     // Verificacion de bloqueo (misma comprobacion que antes hacia auth.js
     // en el navegador, ahora movida aqui porque el frontend ya no puede
     // leer el token para hacer esta llamada el mismo).
-    const asUser = getSupabaseAsUser(data.session.access_token);
-    const { data: perfil } = await asUser.from('perfiles').select('estado').eq('user_id', data.user.id).single();
-
-    if (perfil && perfil.estado === 'bloqueado') {
-      // Revocar la sesion recien creada: signOut() con este cliente envia
-      // el Authorization: Bearer de esta sesion concreta al endpoint de
-      // logout de GoTrue, sin necesidad de auth.setSession() previo.
-      await asUser.auth.signOut();
+    if (await revokeIfBlocked(data.session, data.user)) {
       return res.status(403).json({ status: 'error', message: 'Cuenta suspendida por la administración.' });
     }
 
@@ -125,8 +135,19 @@ async function getSession(req, res) {
 // ── Actualizar usuario (nombre, contraseña) ────────────────────
 async function updateUser(req, res) {
   try {
+    // Solo lo que usa el frontend (perfil.js: nombre; configuracion.js:
+    // contraseña). Antes se pasaba req.body entero a Supabase, lo que dejaba
+    // cambiar desde fuera cualquier atributo (email, metadatos arbitrarios...).
+    const { password, data: meta } = req.body || {};
+    const attrs = {};
+    if (typeof password === 'string' && password.length > 0) attrs.password = password;
+    if (meta && typeof meta.full_name === 'string') attrs.data = { full_name: meta.full_name.trim().slice(0, 100) };
+    if (!Object.keys(attrs).length) {
+      return res.status(400).json({ status: 'error', message: 'Nada que actualizar.' });
+    }
+
     const asUser = getSupabaseAsUser(req.accessToken);
-    const { data, error } = await withTimeout(asUser.auth.updateUser(req.body), 8000, 'auth.updateUser()');
+    const { data, error } = await withTimeout(asUser.auth.updateUser(attrs), 8000, 'auth.updateUser()');
     if (error) return res.status(400).json({ status: 'error', message: error.message });
     res.json({ data, error: null });
   } catch (err) {
@@ -134,4 +155,96 @@ async function updateUser(req, res) {
   }
 }
 
-module.exports = { register, resendConfirmation, login, forgotPassword, logout, getSession, updateUser };
+// ── Login con Google ───────────────────────────────────────────
+// Flujo OAuth con PKCE entero en el servidor, para que la sesion acabe en
+// las mismas cookies httpOnly que el login con contraseña:
+//   1. /google          -> pide a Supabase la URL de Google y guarda el code
+//                          verifier en una cookie httpOnly de 10 minutos.
+//   2. Google -> Supabase -> /google/callback?code=...
+//   3. /google/callback -> canjea el codigo con ese verifier, aplica el
+//                          mismo bloqueo que el login y redirige a la web.
+// El perfil se crea solo con el trigger on_auth_user_created, igual que en
+// el registro normal; Google aporta full_name en los metadatos del usuario.
+
+// Solo rutas internas de la web: evita usar el login como redireccion abierta.
+function safeReturnPath(value) {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return '/pages/dashboard';
+  return /^\/[a-zA-Z0-9_.\-\/?=&%+,#]*$/.test(value) ? value : '/pages/dashboard';
+}
+
+function memoryStorage(initial = {}) {
+  const items = { ...initial };
+  return {
+    items,
+    getItem: key => (key in items ? items[key] : null),
+    setItem: (key, value) => { items[key] = value; },
+    removeItem: key => { delete items[key]; }
+  };
+}
+
+function callbackUrl(req) {
+  // trust proxy esta activo en app.js: en Vercel req.protocol ya es https.
+  return `${process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`}/api/auth/google/callback`;
+}
+
+function redirectToAuthError(res, reason) {
+  res.redirect(303, `${FRONTEND_ORIGIN}/pages/auth?error=${reason}`);
+}
+
+async function googleStart(req, res) {
+  try {
+    const storage = memoryStorage();
+    const client = getSupabasePkce(storage);
+    const { data, error } = await withTimeout(
+      client.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: callbackUrl(req), skipBrowserRedirect: true }
+      }), 8000, 'auth.signInWithOAuth()'
+    );
+    if (error || !data?.url) throw error || new Error('Supabase no devolvio la URL de Google');
+
+    res.cookie(PKCE_COOKIE, JSON.stringify({ items: storage.items, returnPath: safeReturnPath(req.query.returnUrl) }), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      // Lax basta: la vuelta desde Google es una navegacion GET de primer nivel.
+      sameSite: 'lax',
+      path: '/api/auth/google',
+      maxAge: 10 * 60 * 1000
+    });
+    res.redirect(303, data.url);
+  } catch (err) {
+    console.error('[googleStart]', err.message);
+    redirectToAuthError(res, 'google');
+  }
+}
+
+async function googleCallback(req, res) {
+  let state = {};
+  try { state = JSON.parse(req.cookies?.[PKCE_COOKIE] || '{}'); } catch { /* cookie corrupta: se trata como ausente */ }
+  res.clearCookie(PKCE_COOKIE, { path: '/api/auth/google' });
+
+  try {
+    const { code, error: oauthError } = req.query;
+    // El usuario cancelo en Google, o Supabase rechazo el proveedor.
+    if (oauthError || typeof code !== 'string' || !state.items) {
+      if (oauthError) console.error('[googleCallback] Error devuelto por el proveedor:', oauthError, req.query.error_description);
+      return redirectToAuthError(res, 'google');
+    }
+
+    const client = getSupabasePkce(memoryStorage(state.items));
+    const { data, error } = await withTimeout(client.auth.exchangeCodeForSession(code), 8000, 'auth.exchangeCodeForSession()');
+    if (error || !data?.session) throw error || new Error('Sin sesion tras canjear el codigo');
+
+    if (await revokeIfBlocked(data.session, data.user)) {
+      return redirectToAuthError(res, 'bloqueada');
+    }
+
+    setAuthCookies(res, data.session);
+    res.redirect(303, `${FRONTEND_ORIGIN}${safeReturnPath(state.returnPath)}`);
+  } catch (err) {
+    console.error('[googleCallback]', err.message);
+    redirectToAuthError(res, 'google');
+  }
+}
+
+module.exports = { register, resendConfirmation, login, forgotPassword, logout, getSession, updateUser, googleStart, googleCallback };

@@ -15,18 +15,22 @@ const rateLimit = require('express-rate-limit');
 // se cae automáticamente al limiter en memoria de siempre, para que la
 // app siga funcionando sin esa pieza de infraestructura.
 
-function buildLimiter() {
+/**
+ * Crea un limitador de `max` peticiones por IP cada 15 minutos.
+ * `prefix` separa los contadores en Redis: cada limitador lleva el suyo.
+ */
+function buildLimiter({ max, prefix, message }) {
     const url = process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
     if (!url || !token) {
-        console.warn('[RateLimit] UPSTASH_REDIS_REST_URL/TOKEN no configuradas: usando limiter en memoria (no persiste entre invocaciones serverless).');
+        console.warn(`[RateLimit:${prefix}] UPSTASH_REDIS_REST_URL/TOKEN no configuradas: usando limiter en memoria (no persiste entre invocaciones serverless).`);
         return [
             (req, res, next) => { res.setHeader('X-RateLimit-Backend', 'memory'); next(); },
             rateLimit({
                 windowMs: 15 * 60 * 1000,
-                max: 300,
-                message: { status: 'error', message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.' }
+                max,
+                message: { status: 'error', message }
             })
         ];
     }
@@ -37,9 +41,9 @@ function buildLimiter() {
     const redis = new Redis({ url, token });
     const ratelimit = new Ratelimit({
         redis,
-        limiter: Ratelimit.slidingWindow(300, '15 m'),
+        limiter: Ratelimit.slidingWindow(max, '15 m'),
         analytics: true,
-        prefix: 'becamax-ratelimit'
+        prefix
     });
 
     return async (req, res, next) => {
@@ -50,16 +54,34 @@ function buildLimiter() {
             res.setHeader('X-RateLimit-Limit', limit);
             res.setHeader('X-RateLimit-Remaining', remaining);
             if (!success) {
-                return res.status(429).json({ status: 'error', message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.' });
+                return res.status(429).json({ status: 'error', message });
             }
             next();
         } catch (err) {
             // Si Upstash falla (caída puntual, red, etc.), no tumbamos la API
             // entera por un problema del limiter: dejamos pasar la petición.
-            console.error('[RateLimit] Error consultando Upstash, dejando pasar la petición:', err.message);
+            console.error(`[RateLimit:${prefix}] Error consultando Upstash, dejando pasar la petición:`, err.message);
             next();
         }
     };
 }
 
-module.exports = buildLimiter();
+// Límite general de toda la API.
+const globalLimiter = buildLimiter({
+    max: 300,
+    prefix: 'becamax-ratelimit',
+    message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.'
+});
+
+// Límite estricto para login, registro, reenvío de confirmación y
+// recuperación de contraseña. Con solo el general (300 cada 15 min) cabían
+// cientos de intentos de contraseña o de correos de reseteo contra una misma
+// cuenta. hCaptcha y los límites propios de Supabase Auth ayudan, pero esta
+// capa corta el abuso antes de gastar cuota de Supabase y de Resend.
+const authLimiter = buildLimiter({
+    max: 20,
+    prefix: 'becamax-ratelimit-auth',
+    message: 'Demasiados intentos. Espera unos minutos antes de volver a probar.'
+});
+
+module.exports = { globalLimiter, authLimiter };

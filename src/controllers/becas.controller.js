@@ -89,8 +89,10 @@ const getBecas = async (req, res) => {
         const importeMax = req.query.importeMax ? Number(req.query.importeMax) : null;
         const edad       = req.query.edad  ? Number(req.query.edad)  : null;
         const renta      = req.query.renta ? Number(req.query.renta) : null;
-        const pageNum    = Math.max(1, parseInt(page));
-        const limitNum   = Math.min(100, Math.max(1, parseInt(limit)));
+        // `|| 1` / `|| 50`: con ?page=abc parseInt da NaN, y Math.max(1, NaN)
+        // también es NaN -- la respuesta salía vacía en vez de usar el defecto.
+        const pageNum    = Math.max(1, parseInt(page) || 1);
+        const limitNum   = Math.min(100, Math.max(1, parseInt(limit) || 50));
 
         // 2. Intentar cargar desde Supabase; fallback a datos estáticos
         let todasLasBecas = [];
