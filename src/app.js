@@ -81,4 +81,12 @@ app.get('/api/ping', (req, res) => {
   res.json({ message: 'Pong! El servidor BecaMax está funcionando correctamente.', status: 'success' });
 });
 
+// 404 para cualquier ruta que no exista. Va la última, después de todas las
+// rutas: sin esto Express responde con su página HTML "Cannot GET /...", que
+// el frontend no sabe leer (espera JSON como en el resto de errores) y además
+// revela que por detrás hay Express.
+app.use((req, res) => {
+  res.status(404).json({ status: 'error', message: 'Ruta no encontrada' });
+});
+
 module.exports = app;
