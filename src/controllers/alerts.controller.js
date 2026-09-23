@@ -1,3 +1,4 @@
+const { serverError } = require('../utils/serverError');
 const { Resend } = require('resend');
 const { createClient } = require('@supabase/supabase-js');
 const BECAS_ESTATICAS = require('../data/becas');
@@ -271,7 +272,7 @@ const sendAlertsCron = async (req, res) => {
     } catch (error) {
         console.error('[Cron] Error total:', error);
         await notifyDiscord('Cron de alertas: ha fallado entero, no se ha enviado ninguna alerta', { error });
-        res.status(500).json({ status: 'error', message: error.message || 'Error interno' });
+        return serverError(res, error, 'alerts.sendAlertsCron');
     }
 };
 

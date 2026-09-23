@@ -1,3 +1,4 @@
+const { serverError } = require('../utils/serverError');
 const { getSupabaseAnon, getSupabaseAsUser, getSupabasePkce } = require('../config/supabaseAnon');
 const { setAuthCookies, clearAuthCookies, REFRESH_COOKIE } = require('../utils/authCookies');
 const { withTimeout } = require('../utils/withTimeout');
@@ -32,7 +33,7 @@ async function register(req, res) {
     if (error) return res.status(400).json({ status: 'error', message: error.message });
     res.json({ status: 'success' });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    return serverError(res, err, 'auth.register');
   }
 }
 
@@ -45,7 +46,7 @@ async function resendConfirmation(req, res) {
     if (error) return res.status(400).json({ status: 'error', message: error.message });
     res.json({ status: 'success' });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    return serverError(res, err, 'auth.resendConfirmation');
   }
 }
 
@@ -69,7 +70,7 @@ async function login(req, res) {
     setAuthCookies(res, data.session);
     res.json({ status: 'success', data: { session: { user: data.user } } });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    return serverError(res, err, 'auth.login');
   }
 }
 
@@ -82,7 +83,7 @@ async function forgotPassword(req, res) {
     if (error) return res.status(400).json({ status: 'error', message: error.message });
     res.json({ status: 'success' });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    return serverError(res, err, 'auth.forgotPassword');
   }
 }
 
@@ -128,7 +129,10 @@ async function getSession(req, res) {
     clearAuthCookies(res);
     res.json({ data: { session: null }, error: null });
   } catch (err) {
-    res.status(500).json({ data: { session: null }, error: { message: err.message } });
+    // Misma forma que el resto de respuestas de /session (el frontend lee
+    // data.session), pero sin el texto interno del error.
+    console.error('[auth.getSession]', err);
+    res.status(500).json({ data: { session: null }, error: { message: 'Error interno del servidor' } });
   }
 }
 
@@ -151,7 +155,7 @@ async function updateUser(req, res) {
     if (error) return res.status(400).json({ status: 'error', message: error.message });
     res.json({ data, error: null });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    return serverError(res, err, 'auth.updateUser');
   }
 }
 

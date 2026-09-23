@@ -1,3 +1,4 @@
+const { serverError } = require('../utils/serverError');
 const { createClient } = require('@supabase/supabase-js');
 const { syncBdns } = require('../services/bdnsSync.service');
 const { notifyDiscord } = require('../utils/discordAlert');
@@ -35,7 +36,7 @@ const syncBdnsCron = async (req, res) => {
     } catch (error) {
         console.error('[Cron BDNS] Error:', error);
         await notifyDiscord('Cron BDNS: la sincronización diaria de becas ha fallado', { error });
-        res.status(500).json({ status: 'error', message: error.message || 'Error interno' });
+        return serverError(res, error, 'bdns.syncBdnsCron');
     }
 };
 

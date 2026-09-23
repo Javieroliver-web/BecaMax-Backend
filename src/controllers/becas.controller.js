@@ -1,3 +1,4 @@
+const { serverError } = require('../utils/serverError');
 const supabase = require('../config/supabase');
 const BECAS_ESTATICAS = require('../data/becas');
 
@@ -136,10 +137,10 @@ const getBecas = async (req, res) => {
 
     } catch (error) {
         console.error('Error en getBecas:', error);
+        // Sin `details`: el texto interno del error se queda en el log.
         res.status(500).json({
             status: 'error',
-            message: 'Error interno del servidor',
-            details: error.message
+            message: 'Error interno del servidor'
         });
     }
 };
@@ -167,7 +168,7 @@ const getBecaById = async (req, res) => {
 
     } catch (error) {
         console.error('Error en getBecaById:', error);
-        res.status(500).json({ status: 'error', message: error.message });
+        return serverError(res, error, 'becas.getBecaById');
     }
 };
 

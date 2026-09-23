@@ -1,3 +1,4 @@
+const { serverError } = require('../utils/serverError');
 const { createClient } = require('@supabase/supabase-js');
 
 const getSupabaseAdmin = () => {
@@ -65,7 +66,7 @@ const deleteUser = async (req, res) => {
 
   } catch (err) {
     console.error('Error no controlado en endpoint admin delete:', err);
-    res.status(500).json({ status: 'error', message: err.message || 'Error interno del servidor' });
+    return serverError(res, err, 'admin.deleteUser');
   }
 };
 
@@ -139,7 +140,7 @@ const postNews = async (req, res) => {
 
   } catch (err) {
     console.error('Error in postNews:', err);
-    res.status(500).json({ status: 'error', message: err.message });
+    return serverError(res, err, 'admin.postNews');
   }
 };
 
@@ -189,7 +190,7 @@ const deleteNews = async (req, res) => {
 
   } catch (err) {
     console.error('Error in deleteNews:', err);
-    res.status(500).json({ status: 'error', message: err.message });
+    return serverError(res, err, 'admin.deleteNews');
   }
 };
 
