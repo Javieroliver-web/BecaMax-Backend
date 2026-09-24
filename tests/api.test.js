@@ -73,6 +73,27 @@ test('CORS con credenciales solo para el frontend de BecaMax', async () => {
   }
 });
 
+test('las rutas de administración exigen una sesión válida', async () => {
+  const peticiones = [
+    ['DELETE', '/api/admin/users/otro-usuario'],
+    ['POST', '/api/admin/news'],
+    ['DELETE', '/api/admin/news'],
+  ];
+  // Cuerpo bien formado: postNews valida el contenido ANTES que la sesión
+  // (400), y lo que se quiere probar aquí es la sesión.
+  const cuerpo = JSON.stringify({ content: 'noticia de prueba', id: 1 });
+  for (const [method, ruta] of peticiones) {
+    const sinSesion = await fetch(`${base}${ruta}`, { method, headers: ESCRITURA, body: cuerpo });
+    assert.strictEqual(sinSesion.status, 401, `${method} ${ruta} sin sesión`);
+    const falsa = await fetch(`${base}${ruta}`, {
+      method, headers: { ...ESCRITURA, cookie: 'sb-access-token=inventado' }, body: cuerpo,
+    });
+    assert.strictEqual(falsa.status, 401, `${method} ${ruta} con un token inventado`);
+  }
+  // Solo se preguntó a Auth por el token; nada llegó a las tablas.
+  assert.ok(recibidas.every((x) => x.url.startsWith('/auth/v1/user')));
+});
+
 test('una ruta que no existe da 404 en JSON', async () => {
   const r = await fetch(`${base}/api/no-existe`);
   assert.strictEqual(r.status, 404);
