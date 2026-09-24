@@ -6,15 +6,24 @@ const { withTimeout } = require('../utils/withTimeout');
 const FRONTEND_ORIGIN = process.env.FRONTEND_URL || 'https://becamax.vercel.app';
 const PKCE_COOKIE = 'sb-google-pkce';
 
-// Cuenta bloqueada por la administracion: revoca la sesion recien creada y
-// devuelve true. Compartido por el login con contraseña y el de Google.
+// Revoca en Supabase los refresh tokens de la sesión de ese access token.
+// OJO: auth.signOut() NO sirve aquí. Solo llama a GoTrue si el cliente tiene
+// una sesión guardada, y en el servidor nunca la hay (persistSession: false),
+// así que hasta el 24/09/2026 no revocaba nada: ni al cerrar sesión ni al
+// bloquear. admin.signOut(jwt) llama a /logout con el token del propio
+// usuario (no necesita la clave de servicio).
+async function revocarSesion(accessToken, scope) {
+  const { error } = await getSupabaseAnon().auth.admin.signOut(accessToken, scope);
+  if (error) console.error(`[revocarSesion:${scope}]`, error.message);
+}
+
+// Cuenta bloqueada por la administracion: revoca todas sus sesiones y
+// devuelve true. Lo usan el login (contraseña y Google) y /session.
 async function revokeIfBlocked(session, user) {
   const asUser = getSupabaseAsUser(session.access_token);
   const { data: perfil } = await asUser.from('perfiles').select('estado').eq('user_id', user.id).single();
   if (perfil && perfil.estado === 'bloqueado') {
-    // signOut() con este cliente envia el Authorization: Bearer de esta
-    // sesion concreta al endpoint de logout de GoTrue, sin auth.setSession().
-    await asUser.auth.signOut();
+    await revocarSesion(session.access_token, 'global');
     return true;
   }
   return false;
@@ -91,8 +100,9 @@ async function forgotPassword(req, res) {
 async function logout(req, res) {
   try {
     if (req.accessToken) {
-      const asUser = getSupabaseAsUser(req.accessToken);
-      await withTimeout(asUser.auth.signOut(), 8000, 'auth.signOut()').catch(() => {}); // best-effort: revocar aunque falle, igual limpiamos cookies
+      // 'local': cierra esta sesión, no las de sus otros dispositivos.
+      // best-effort: aunque falle, las cookies se borran igual.
+      await withTimeout(revocarSesion(req.accessToken, 'local'), 8000, 'revocarSesion()').catch(() => {});
     }
   } finally {
     clearAuthCookies(res);
@@ -103,7 +113,16 @@ async function logout(req, res) {
 // ── Sesion actual (con refresco transparente si hace falta) ────
 async function getSession(req, res) {
   try {
+    // El bloqueo se mira también aquí, no solo al iniciar sesión: bloquear
+    // desde el panel de admin solo cambia `perfiles.estado`, y hasta el
+    // 24/09/2026 quien ya tenía sesión seguía dentro (el refresco renovaba la
+    // cookie sin preguntar). Cada página llama a /session al cargar, así que
+    // el bloqueo surte efecto en la siguiente página que abra.
     if (req.user) {
+      if (await revokeIfBlocked({ access_token: req.accessToken }, req.user)) {
+        clearAuthCookies(res);
+        return res.json({ data: { session: null }, error: null });
+      }
       return res.json({ data: { session: { user: req.user } }, error: null });
     }
 
@@ -118,6 +137,10 @@ async function getSession(req, res) {
           anon.auth.refreshSession({ refresh_token: refreshToken }), 8000, 'auth.refreshSession()'
         );
         if (!error && data.session) {
+          if (await revokeIfBlocked(data.session, data.user)) {
+            clearAuthCookies(res);
+            return res.json({ data: { session: null }, error: null });
+          }
           setAuthCookies(res, data.session);
           return res.json({ data: { session: { user: data.user } }, error: null });
         }
@@ -150,10 +173,24 @@ async function updateUser(req, res) {
       return res.status(400).json({ status: 'error', message: 'Nada que actualizar.' });
     }
 
-    const asUser = getSupabaseAsUser(req.accessToken);
-    const { data, error } = await withTimeout(asUser.auth.updateUser(attrs), 8000, 'auth.updateUser()');
-    if (error) return res.status(400).json({ status: 'error', message: error.message });
-    res.json({ data, error: null });
+    // Llamada directa a GoTrue: auth.updateUser() exige una sesión guardada en
+    // el cliente y en el servidor no la hay, así que siempre respondía
+    // "Auth session missing!" (roto desde el paso a cookies httpOnly).
+    const respuesta = await withTimeout(fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: {
+        apikey: process.env.SUPABASE_ANON_KEY,
+        authorization: `Bearer ${req.accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(attrs),
+    }), 8000, 'PUT /auth/v1/user');
+    const cuerpo = await respuesta.json().catch(() => ({}));
+    if (!respuesta.ok) {
+      const message = cuerpo.msg || cuerpo.message || cuerpo.error_description || 'No se pudo actualizar.';
+      return res.status(400).json({ status: 'error', message });
+    }
+    res.json({ data: { user: cuerpo }, error: null });
   } catch (err) {
     return serverError(res, err, 'auth.updateUser');
   }

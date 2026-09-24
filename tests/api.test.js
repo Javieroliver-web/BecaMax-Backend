@@ -312,3 +312,48 @@ test('si la base de datos no responde, 502 genérico y sin detalles internos', a
     await new Promise((ok) => supabaseFalso.listen(puerto, '127.0.0.1', ok));
   }
 });
+
+test('una cuenta bloqueada pierde la sesión que ya tenía abierta', async () => {
+  // Bloquear desde el panel solo cambia perfiles.estado: sin esta comprobación,
+  // quien ya estaba dentro seguía dentro (el refresco renovaba la cookie).
+  // Con .single() PostgREST devuelve un objeto, no una lista.
+  respuestaFalsa = { status: 200, body: '{"estado":"bloqueado"}', headers: {} };
+  const r = await fetch(`${base}/api/auth/session`, { headers: { cookie: 'sb-access-token=token-de-javi' } });
+  const cuerpo = await r.json();
+  assert.strictEqual(cuerpo.data.session, null);
+  assert.ok(r.headers.getSetCookie().some((c) => c.startsWith('sb-access-token=;')), 'debe borrar la cookie');
+  assert.ok(recibidas.some((q) => q.url.startsWith('/auth/v1/logout')), 'debe revocar la sesión en Supabase');
+});
+
+test('una cuenta activa conserva la sesión', async () => {
+  respuestaFalsa = { status: 200, body: '{"estado":"activo"}', headers: {} };
+  const r = await fetch(`${base}/api/auth/session`, { headers: { cookie: 'sb-access-token=token-de-javi' } });
+  const cuerpo = await r.json();
+  assert.strictEqual(cuerpo.data.session.user.id, 'id-de-javi');
+  assert.ok(!recibidas.some((q) => q.url.startsWith('/auth/v1/logout')));
+});
+
+test('cerrar sesión revoca la sesión en Supabase, no solo borra las cookies', async () => {
+  const r = await fetch(`${base}/api/auth/logout`, {
+    method: 'POST', headers: { ...ESCRITURA, cookie: 'sb-access-token=token-de-javi' },
+  });
+  assert.strictEqual(r.status, 200);
+  const logout = recibidas.find((q) => q.url.startsWith('/auth/v1/logout'));
+  assert.ok(logout, 'debe llamar a /auth/v1/logout');
+  assert.strictEqual(logout.headers.authorization, 'Bearer token-de-javi');
+  assert.match(logout.url, /scope=local/);
+});
+
+test('cambiar nombre o contraseña llega a Supabase con el token del usuario', async () => {
+  respuestaFalsa = { status: 200, body: '{"id":"id-de-javi","user_metadata":{"full_name":"Javi"}}', headers: {} };
+  const r = await fetch(`${base}/api/auth/update-user`, {
+    method: 'POST',
+    headers: { ...ESCRITURA, cookie: 'sb-access-token=token-de-javi' },
+    body: JSON.stringify({ data: { full_name: ' Javi ' }, email: 'otro@example.com' }),
+  });
+  assert.strictEqual(r.status, 200, await r.clone().text());
+  const put = recibidas.find((q) => q.method === 'PUT' && q.url.startsWith('/auth/v1/user'));
+  assert.ok(put, 'debe llamar a PUT /auth/v1/user');
+  assert.strictEqual(put.headers.authorization, 'Bearer token-de-javi');
+  assert.deepStrictEqual(JSON.parse(put.cuerpo), { data: { full_name: 'Javi' } }, 'solo lo permitido');
+});

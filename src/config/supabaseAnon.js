@@ -17,11 +17,10 @@ function getSupabaseAnon() {
 }
 
 // Cliente "como el usuario": misma anon key, pero con el access token de su
-// sesion en la cabecera Authorization. supabase-js aplica global.headers a
-// TODAS sus sub-APIs (PostgREST, GoTrue, Storage), asi que este mismo
-// cliente sirve tanto para leer/escribir tablas respetando RLS como para
-// llamar a auth.updateUser()/auth.signOut() en nombre del usuario, sin
-// necesitar auth.setSession().
+// sesion en la cabecera Authorization. Sirve para leer/escribir tablas
+// respetando RLS. OJO: NO para auth.updateUser()/auth.signOut(): exigen una
+// sesion guardada en el cliente y aqui no la hay, asi que fallan ("Auth
+// session missing!") o no hacen nada. Ver auth.controller.js.
 function getSupabaseAsUser(accessToken) {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Falta SUPABASE_URL o SUPABASE_ANON_KEY en el entorno del servidor.');
