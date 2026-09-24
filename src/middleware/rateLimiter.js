@@ -84,4 +84,13 @@ const authLimiter = buildLimiter({
     message: 'Demasiados intentos. Espera unos minutos antes de volver a probar.'
 });
 
-module.exports = { globalLimiter, authLimiter };
+// Registro de visitas: sin sesión y escribe en system_logs con la clave de
+// servicio. La web manda como mucho una por carga de portada; con solo el
+// general cabían 300 filas falsas cada 15 min por IP.
+const visitasLimiter = buildLimiter({
+    max: 30,
+    prefix: 'becamax-ratelimit-visitas',
+    message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.'
+});
+
+module.exports = { globalLimiter, authLimiter, visitasLimiter };

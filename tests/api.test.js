@@ -357,3 +357,11 @@ test('cambiar nombre o contraseña llega a Supabase con el token del usuario', a
   assert.strictEqual(put.headers.authorization, 'Bearer token-de-javi');
   assert.deepStrictEqual(JSON.parse(put.cuerpo), { data: { full_name: 'Javi' } }, 'solo lo permitido');
 });
+
+test('el registro de visitas tiene su propio límite, más estricto que el general', async () => {
+  let ultimo;
+  for (let i = 0; i < 31; i++) {
+    ultimo = await fetch(`${base}/api/logs`, { method: 'POST', headers: ESCRITURA, body: '{"page":"/"}' });
+  }
+  assert.strictEqual(ultimo.status, 429);
+});

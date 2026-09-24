@@ -51,7 +51,8 @@ const deleteUser = async (req, res) => {
 
     if (deleteError) {
       console.error('Supabase Auth error al eliminar usuario:', deleteError);
-      return res.status(500).json({ status: 'error', message: `Fallo al eliminar: ${deleteError.message}` });
+      // El detalle se queda en los logs: no devolver textos internos de Supabase.
+      return res.status(500).json({ status: 'error', message: 'No se pudo eliminar el usuario.' });
     }
 
     // Log the action (optional but good practice)
