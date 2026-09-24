@@ -150,6 +150,50 @@ test('si falla la base de datos, 500 genérico sin detalles', async () => {
   assert.doesNotMatch(await r.text(), /secreta|relation/);
 });
 
+// ── Registro del consentimiento de cookies (RGPD art. 7.1) ───────────────────
+
+const CONSENTIMIENTO = {
+  consent_id: '3f1c2b4a-5d6e-4f70-8a9b-0c1d2e3f4a5b', analisis: true, marketing: false,
+  accion: 'personalizar', version_politica: '2026-09',
+};
+
+test('el consentimiento se guarda con la clave de servicio, sin IP y sin usuario', async () => {
+  respuestaFalsa = { status: 201, body: '', headers: {} };
+  const r = await fetch(`${base}/api/consentimiento`, {
+    method: 'POST', headers: { ...ESCRITURA, 'user-agent': 'Navegador de prueba', 'x-forwarded-for': '203.0.113.9' },
+    body: JSON.stringify({ ...CONSENTIMIENTO, ip: '1.2.3.4', user_id: 'id-de-otro' }),
+  });
+  assert.strictEqual(r.status, 201);
+  const insercion = recibidas.find((x) => x.method === 'POST' && x.url.startsWith('/rest/v1/consentimientos_cookies'));
+  assert.ok(insercion, 'no llegó la inserción');
+  assert.strictEqual(insercion.headers.authorization, 'Bearer clave-servicio-de-prueba');
+  const [fila] = JSON.parse(insercion.cuerpo);
+  assert.deepStrictEqual(Object.keys(fila).sort(),
+    ['accion', 'analisis', 'consent_id', 'marketing', 'user_agent', 'version_politica']);
+  assert.strictEqual(fila.user_agent, 'Navegador de prueba');
+  assert.ok(!JSON.stringify(fila).includes('203.0.113.9') && !JSON.stringify(fila).includes('1.2.3.4'), 'sin IP');
+  // Y se borran los de hace más de 24 meses.
+  assert.ok(recibidas.some((x) => x.method === 'DELETE' && decodeURIComponent(x.url).includes('creado=lt.')));
+});
+
+test('un consentimiento mal formado se rechaza sin tocar la base de datos', async () => {
+  const malos = [
+    { ...CONSENTIMIENTO, consent_id: 'no-es-un-uuid' },
+    { ...CONSENTIMIENTO, analisis: 'true' },
+    { ...CONSENTIMIENTO, accion: 'borrar_todo' },
+    { ...CONSENTIMIENTO, version_politica: '2026-09; drop table' },
+  ];
+  for (const cuerpo of malos) {
+    const r = await fetch(`${base}/api/consentimiento`, { method: 'POST', headers: ESCRITURA, body: JSON.stringify(cuerpo) });
+    assert.strictEqual(r.status, 400, JSON.stringify(cuerpo));
+  }
+  const sinCabecera = await fetch(`${base}/api/consentimiento`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(CONSENTIMIENTO),
+  });
+  assert.strictEqual(sinCabecera.status, 403, 'un <form> de otra web no puede registrar elecciones');
+  assert.ok(!recibidas.some((x) => x.url.startsWith('/rest/v1/consentimientos_cookies')));
+});
+
 test('una ruta que no existe da 404 en JSON', async () => {
   const r = await fetch(`${base}/api/no-existe`);
   assert.strictEqual(r.status, 404);

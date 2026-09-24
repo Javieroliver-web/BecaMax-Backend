@@ -66,6 +66,7 @@ const bdnsRoutes      = require('./routes/bdns.routes');
 const authRoutes      = require('./routes/auth.routes');
 const dbRoutes        = require('./routes/db.routes');
 const storageRoutes   = require('./routes/storage.routes');
+const consentimientoRoutes = require('./routes/consentimiento.routes');
 
 app.use('/api/becas',     becasRoutes);
 app.use('/api/logs',      logsRoutes);
@@ -75,6 +76,7 @@ app.use('/api/bdns',      bdnsRoutes);
 app.use('/api/auth',      authRoutes);
 app.use('/api/db',        dbRoutes);
 app.use('/api/storage',   storageRoutes);
+app.use('/api/consentimiento', consentimientoRoutes);
 
 // Rutas de prueba
 app.get('/api/ping', (req, res) => {
