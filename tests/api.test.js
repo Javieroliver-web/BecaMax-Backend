@@ -241,6 +241,55 @@ test('con la cabecera propia, la escritura llega con su cuerpo', async () => {
   assert.deepStrictEqual(JSON.parse(escritura.cuerpo), { tipo: 'error', descripcion: 'no carga' });
 });
 
+// ── Solo las operaciones que hace la web (24/09/2026) ────────────────────────
+
+test('el proxy rechaza lo que la web nunca hace, sin tocar la base de datos', async () => {
+  const intentos = [
+    ['PATCH', '/api/db/perfiles?user_id=eq.id-de-javi', { rol: 'admin' }, 'hacerse admin'],
+    ['POST', '/api/db/perfiles', { user_id: 'id-de-javi', rol: 'admin' }, 'crear un perfil'],
+    ['DELETE', '/api/db/perfiles?user_id=eq.id-de-javi', null, 'borrar el perfil'],
+    ['PATCH', '/api/db/filtros_guardados', { activo: false }, 'editar sin filtro'],
+    ['DELETE', '/api/db/favoritos', null, 'borrar sin filtro'],
+    ['DELETE', '/api/db/notificaciones?id=eq.1', null, 'borrar notificaciones'],
+    ['POST', '/api/db/noticias', { content: 'x' }, 'publicar noticias'],
+    ['POST', '/api/db/incidencias', { tipo: 'error', descripcion: 'x', estado: 'resuelta' }, 'incidencia ya resuelta'],
+    ['PATCH', '/api/db/notificaciones?id=eq.1', { leida: true, user_id: 'id-de-otro' }, 'mover una notificación'],
+    ['POST', '/api/db/favoritos', [{ user_id: 'a', beca_id: 1 }, 'no es una fila'], 'fila mal formada'],
+    ['GET', '/api/db/rpc/delete_my_account', null, 'la RPC por GET'],
+  ];
+  for (const [method, ruta, cuerpo, caso] of intentos) {
+    const r = await fetch(`${base}${ruta}`, {
+      method, headers: ESCRITURA, body: cuerpo === null ? undefined : JSON.stringify(cuerpo),
+    });
+    assert.strictEqual(r.status, 403, caso);
+  }
+  assert.strictEqual(recibidas.length, 0, 'nada debe llegar a la base de datos');
+});
+
+test('las operaciones de la web siguen pasando', async () => {
+  respuestaFalsa = { status: 201, body: '', headers: {} };
+  const operaciones = [
+    ['PATCH', '/api/db/perfiles?user_id=eq.id-de-javi', { tipo_estudio: 'FP', region: 'andalucia', area: 'ciencias' }],
+    ['PATCH', '/api/db/perfiles?user_id=eq.id-de-javi', { avatar_url: 'https://ejemplo/foto.png' }],
+    ['POST', '/api/db/favoritos?on_conflict=user_id%2Cbeca_id', { user_id: 'id-de-javi', beca_id: 7 }],
+    ['DELETE', '/api/db/favoritos?user_id=eq.id-de-javi&beca_id=eq.7', null],
+    ['POST', '/api/db/filtros_guardados', [{ user_id: 'id-de-javi', nombre: 'FP', filtros: {}, activo: true }]],
+    ['PATCH', '/api/db/filtros_guardados?id=eq.3', { nombre: 'Nuevo nombre' }],
+    ['DELETE', '/api/db/filtros_guardados?id=eq.3', null],
+    ['PATCH', '/api/db/notificaciones?user_id=eq.id-de-javi&leida=eq.false', { leida: true }],
+    ['POST', '/api/db/incidencias', [{ user_id: null, tipo: 'error', descripcion: 'no carga', estado: 'pendiente' }]],
+    ['POST', '/api/db/eventos_embudo', [{ evento: 'ver_beca', meta: {}, user_id: null, analytics_id: 'x' }]],
+    ['POST', '/api/db/rpc/delete_my_account', null],
+  ];
+  for (const [method, ruta, cuerpo] of operaciones) {
+    const r = await fetch(`${base}${ruta}`, {
+      method, headers: ESCRITURA, body: cuerpo === null ? undefined : JSON.stringify(cuerpo),
+    });
+    assert.strictEqual(r.status, 201, `${method} ${ruta}`);
+  }
+  assert.strictEqual(recibidas.length, operaciones.length);
+});
+
 test('una cookie de sesión falsa no se hace pasar por el usuario', async () => {
   const r = await fetch(`${base}/api/db/perfiles?select=*`, {
     headers: { cookie: 'sb-access-token=token-inventado' },
