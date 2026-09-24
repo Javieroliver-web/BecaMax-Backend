@@ -19,7 +19,14 @@ const supabaseFalso = http.createServer((req, res) => {
   req.on('end', () => {
     recibidas.push({ method: req.method, url: req.url, headers: req.headers, cuerpo });
     if (req.url.startsWith('/auth/v1/user')) {
-      // Cualquier token es inválido para el Supabase falso.
+      // Solo hay una sesión válida: la de «javi». Cualquier otro token, 401.
+      if (req.headers.authorization === 'Bearer token-de-javi') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({
+          id: 'id-de-javi', email: 'javi@example.com', aud: 'authenticated', role: 'authenticated',
+          created_at: '2026-01-01T00:00:00Z', app_metadata: { provider: 'email' }, user_metadata: {},
+        }));
+      }
       res.writeHead(401, { 'content-type': 'application/json' });
       return res.end('{"message":"invalid JWT"}');
     }
@@ -92,6 +99,55 @@ test('las rutas de administración exigen una sesión válida', async () => {
   }
   // Solo se preguntó a Auth por el token; nada llegó a las tablas.
   assert.ok(recibidas.every((x) => x.url.startsWith('/auth/v1/user')));
+});
+
+// ── Descargar mis datos (arts. 15 y 20 RGPD) ─────────────────────────────────
+
+const SESION_JAVI = { cookie: 'sb-access-token=token-de-javi' };
+
+test('descargar mis datos exige sesión', async () => {
+  assert.strictEqual((await fetch(`${base}/api/auth/mis-datos`)).status, 401);
+  const falsa = await fetch(`${base}/api/auth/mis-datos`, { headers: { cookie: 'sb-access-token=inventado' } });
+  assert.strictEqual(falsa.status, 401);
+  assert.ok(recibidas.every((x) => x.url.startsWith('/auth/v1/user')), 'sin sesión no se lee ninguna tabla');
+});
+
+test('descargar mis datos: solo los tuyos, aunque la petición diga otra cosa', async () => {
+  // Intento de pedir los de otro por todas las vías que usaba Vesta.
+  const r = await fetch(`${base}/api/auth/mis-datos?user_id=id-de-otro&usuarioId=id-de-otro`, {
+    headers: { ...SESION_JAVI, 'x-user-id': 'id-de-otro' },
+  });
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers.get('content-disposition'), /attachment; filename="becamax-mis-datos-\d{4}-\d\d-\d\d\.json"/);
+  assert.strictEqual(r.headers.get('cache-control'), 'no-store');
+  const datos = await r.json();
+  assert.strictEqual(datos.cuenta.id, 'id-de-javi');
+  assert.strictEqual(datos.cuenta.email, 'javi@example.com');
+
+  const consultas = recibidas.filter((x) => x.url.startsWith('/rest/v1/'));
+  const tabla = (x) => x.url.split('?')[0].replace('/rest/v1/', '');
+  // Las suyas, con SU token: RLS pone el filtro.
+  for (const t of ['perfiles', 'favoritos', 'filtros_guardados', 'notificaciones', 'incidencias']) {
+    const c = consultas.find((x) => tabla(x) === t);
+    assert.ok(c, `falta ${t}`);
+    assert.strictEqual(c.headers.authorization, 'Bearer token-de-javi', t);
+  }
+  // Las de admin, con la clave de servicio pero filtradas por SU id verificado.
+  for (const t of ['eventos_embudo', 'system_logs']) {
+    const c = consultas.find((x) => tabla(x) === t);
+    assert.ok(c, `falta ${t}`);
+    assert.strictEqual(c.headers.authorization, 'Bearer clave-servicio-de-prueba', t);
+    assert.match(decodeURIComponent(c.url), /user_id=eq\.id-de-javi/, t);
+  }
+  assert.ok(!consultas.some((x) => decodeURIComponent(x.url).includes('id-de-otro')),
+    'nada de la petición puede apuntar a otro usuario');
+});
+
+test('si falla la base de datos, 500 genérico sin detalles', async () => {
+  respuestaFalsa = { status: 500, body: '{"message":"relation secreta does not exist"}', headers: {} };
+  const r = await fetch(`${base}/api/auth/mis-datos`, { headers: SESION_JAVI });
+  assert.strictEqual(r.status, 500);
+  assert.doesNotMatch(await r.text(), /secreta|relation/);
 });
 
 test('una ruta que no existe da 404 en JSON', async () => {

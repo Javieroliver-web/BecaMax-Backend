@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
+const misDatosController = require('../controllers/misDatos.controller');
 const { attachUser, requireAuth } = require('../middleware/cookieAuth');
 const { requireFetchHeader } = require('../middleware/requireFetchHeader');
 const { authLimiter } = require('../middleware/rateLimiter');
@@ -19,5 +20,8 @@ router.get('/google/callback', authController.googleCallback);
 router.post('/logout', authController.logout);
 router.get('/session', authController.getSession);
 router.post('/update-user', requireAuth, authController.updateUser);
+// Descargar mis datos (arts. 15 y 20 RGPD). authLimiter: es una consulta
+// pesada (7 tablas) y no hace falta más de unas pocas veces.
+router.get('/mis-datos', authLimiter, requireAuth, misDatosController.exportar);
 
 module.exports = router;
