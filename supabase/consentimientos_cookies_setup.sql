@@ -30,3 +30,11 @@ drop policy if exists consentimientos_cookies_select_admin on public.consentimie
 create policy consentimientos_cookies_select_admin on public.consentimientos_cookies
   for select to authenticated using (is_admin());
 grant select on public.consentimientos_cookies to authenticated;  -- filtrado por la política: solo admin
+
+-- OJO: en este proyecto las tablas nuevas NO dan permisos al service_role por
+-- defecto. Sin esto el endpoint daba 500 en producción (24/09/2026).
+grant select, insert, delete on public.consentimientos_cookies to service_role;
+
+-- "Descargar mis datos" (GET /api/auth/mis-datos) lee eventos_embudo del
+-- propio usuario con la clave de servicio; tampoco tenía permiso.
+grant select on public.eventos_embudo to service_role;
