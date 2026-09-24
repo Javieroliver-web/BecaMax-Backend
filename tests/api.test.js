@@ -37,6 +37,7 @@ test.before(async () => {
     SUPABASE_URL: `http://127.0.0.1:${supabaseFalso.address().port}`,
     SUPABASE_ANON_KEY: 'clave-anonima-de-prueba',
     SUPABASE_SERVICE_KEY: 'clave-servicio-de-prueba',
+    FRONTEND_URL: 'https://becamax.vercel.app',
     DISCORD_WEBHOOK_URL: '',
     RESEND_API_KEY: '',
     VERCEL: '1',
@@ -58,6 +59,19 @@ test.beforeEach(() => {
 });
 
 const ESCRITURA = { 'x-becamax-client': '1', 'content-type': 'application/json' };
+
+test('CORS con credenciales solo para el frontend de BecaMax', async () => {
+  // Si cualquier web recibiera Access-Control-Allow-Origin con credenciales,
+  // podría leer los datos de un usuario usando su sesión.
+  const bueno = await fetch(`${base}/api/no-existe`, { headers: { origin: 'https://becamax.vercel.app' } });
+  assert.strictEqual(bueno.headers.get('access-control-allow-origin'), 'https://becamax.vercel.app');
+  assert.strictEqual(bueno.headers.get('access-control-allow-credentials'), 'true');
+
+  for (const origen of ['https://evil.example', 'https://becamax.vercel.app.evil.example', 'null']) {
+    const malo = await fetch(`${base}/api/no-existe`, { headers: { origin: origen } });
+    assert.strictEqual(malo.headers.get('access-control-allow-origin'), null, origen);
+  }
+});
 
 test('una ruta que no existe da 404 en JSON', async () => {
   const r = await fetch(`${base}/api/no-existe`);
