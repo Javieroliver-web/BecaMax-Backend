@@ -143,14 +143,14 @@ function buildEmailHTML(alerta, becasMatch) {
   <tr><td style="background:#0f0f1a;padding:24px 32px;border-left:1px solid #1e1e3a;border-right:1px solid #1e1e3a;">
     ${becaCards}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;"><tr><td align="center">
-      <a href="${frontendUrl}/pages/dashboard.html" style="display:inline-block;background:#10b981;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:700;">Ver todas mis alertas \u2192</a>
+      <a href="${frontendUrl}/" style="display:inline-block;background:#10b981;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:700;">Ir a BecaMax \u2192</a>
     </td></tr></table>
   </td></tr>
 
   <!-- FOOTER -->
   <tr><td style="background:#0a0a1a;border-radius:0 0 16px 16px;padding:24px 32px;text-align:center;border:1px solid #1e1e3a;border-top:1px solid #10b981;">
     <p style="margin:0 0 8px;font-size:12px;color:#4b5563;">Recibes este email porque tienes alertas activas en BecaMax.</p>
-    <p style="margin:0;font-size:12px;color:#4b5563;">Para dejar de recibirlos, <a href="${frontendUrl}/pages/dashboard.html" style="color:#10b981;text-decoration:underline;">desactiva la alerta desde tu panel</a>.</p>
+    <p style="margin:0;font-size:12px;color:#4b5563;">Para dejar de recibirlos, <a href="${frontendUrl}/" style="color:#10b981;text-decoration:underline;">entra en BecaMax y desact\u00edvala desde tu panel</a>.</p>
     <div style="margin-top:16px;padding-top:16px;border-top:1px solid #1e1e3a;font-size:11px;color:#374151;">&copy; 2026 BecaMax &middot; Informaci\u00f3n orientativa, verifica siempre en la fuente oficial.</div>
   </td></tr>
 
