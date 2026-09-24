@@ -12,7 +12,10 @@
 -- revoca por completo el acceso de `anon` a perfiles y filtros_guardados.
 
 REVOKE ALL PRIVILEGES ON TABLE public.perfiles FROM anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.perfiles TO authenticated;
+-- (2026-09-24) Solo leer y editar: crear/borrar el perfil con la sesión del
+-- usuario permitía recrearlo como admin (ver perfiles_sin_escalada_y_rendimiento.sql).
+REVOKE INSERT, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.perfiles FROM authenticated;
+GRANT SELECT, UPDATE ON TABLE public.perfiles TO authenticated;
 GRANT ALL PRIVILEGES ON TABLE public.perfiles TO service_role;
 
 REVOKE ALL PRIVILEGES ON TABLE public.filtros_guardados FROM anon;
