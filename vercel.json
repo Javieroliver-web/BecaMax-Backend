@@ -20,7 +20,10 @@
     {
       "path": "/api/alerts/process_cron",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/difusion/process_cron",
+      "schedule": "0 8 * * *"
     }
   ]
 }
-

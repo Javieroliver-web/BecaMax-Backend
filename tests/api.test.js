@@ -365,3 +365,16 @@ test('el registro de visitas tiene su propio límite, más estricto que el gener
   }
   assert.strictEqual(ultimo.status, 429);
 });
+
+test('el cron de difusión exige CRON_SECRET y no toca la base de datos sin él', async () => {
+  process.env.CRON_SECRET = 'secreto-de-prueba';
+  try {
+    for (const auth of [undefined, 'Bearer otro', 'secreto-de-prueba']) {
+      const res = await fetch(`${base}/api/difusion/process_cron`, { headers: auth ? { authorization: auth } : {} });
+      assert.strictEqual(res.status, 401, String(auth));
+    }
+    assert.strictEqual(recibidas.length, 0);
+  } finally {
+    delete process.env.CRON_SECRET;
+  }
+});
