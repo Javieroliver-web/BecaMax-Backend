@@ -65,7 +65,7 @@ function limpiarNombre(texto, esNombre = false) {
 }
 
 // =========================================================
-// 1. BÚSQUEDA: listar convocatorias candidatas (nivel nacional o Andalucía)
+// 1. BÚSQUEDA: listar convocatorias candidatas (se filtran por región con el detalle)
 // =========================================================
 async function buscarCandidatas(diasHaciaAtras) {
   const hoy = new Date();
@@ -86,12 +86,14 @@ async function buscarCandidatas(diasHaciaAtras) {
 
     totalPages = data.totalPages || 1;
     for (const item of data.content || []) {
-      const nivel1 = item.nivel1;
-      const esAndalucia = quitarAcentos(item.nivel2).includes('ANDALUC');
-      const esNacional = nivel1 === 'ESTADO';
-      if (esNacional || esAndalucia) {
-        candidatas.push({ ...item, _region: esNacional ? 'Nacional' : 'Andalucía' });
-      }
+      // En la búsqueda solo se puede descartar con seguridad lo AUTONÓMICO de
+      // otra comunidad (su nivel2 es el nombre de la comunidad). Ayuntamientos,
+      // diputaciones y universidades (nivel1 LOCAL/OTROS) traen en nivel2 su
+      // propio nombre ("GRANADA", "UNIVERSIDAD DE GRANADA"): hasta el 27/09/2026
+      // se descartaban todas, y con ellas las de Andalucía. La región real se
+      // decide con el detalle (campo `regiones`), en regionDe().
+      if (item.nivel1 === 'AUTONOMICA' && !quitarAcentos(item.nivel2).includes('ANDALUC')) continue;
+      candidatas.push(item);
     }
 
     page++;
@@ -141,16 +143,66 @@ function clasificarArea(sectores) {
 // 4. MAPEO A LA FILA DE public.becas (esquema real de producción:
 //    id SERIAL, importe JSONB {min,max}, deadline DATE, etc.)
 // =========================================================
+// =========================================================
+// 3b. REGIÓN: BecaMax solo muestra becas nacionales o de Andalucía.
+//     `regiones` trae códigos NUTS ("ES614 - Granada"); Andalucía es ES61.
+// =========================================================
+function regionDe(detalle) {
+  if (!detalle) return null;
+  if (detalle.organo?.nivel1 === 'ESTADO') return 'Nacional';
+  const codigos = (detalle.regiones || []).map((r) => String(r?.descripcion || '').trim().split(/\s/)[0]);
+  if (codigos.some((c) => c.startsWith('ES61'))) return 'Andalucía';
+  if (detalle.organo?.nivel1 === 'AUTONOMICA' && quitarAcentos(detalle.organo?.nivel2).includes('ANDALUC')) return 'Andalucía';
+  return null;
+}
+
+// =========================================================
+// 3c. PLAZO: desde septiembre de 2026 la BDNS deja `fechaFinSolicitud` vacía
+//     en muchas convocatorias y pone el plazo en texto (`textFin`). Solo se
+//     aprovecha cuando el texto trae UNA fecha completa y explícita
+//     ("30/10/2026", "7 de octubre de 2026", "16 OCTUBRE 2026"). Los plazos
+//     relativos ("15 días hábiles desde la publicación") se descartan: la
+//     fecha de publicación en el boletín no viene en la API y calcularla
+//     sería inventar un plazo.
+// =========================================================
+const MESES = { ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6, JULIO: 7,
+  AGOSTO: 8, SEPTIEMBRE: 9, SETIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12 };
+
+function fechaValida(a, m, d) {
+  const f = new Date(Date.UTC(a, m - 1, d));
+  if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d) return null;
+  return f.toISOString().slice(0, 10);
+}
+
+function extraerFechaFin(texto) {
+  const t = quitarAcentos(texto);
+  if (!t) return null;
+  const encontradas = new Set();
+  for (const m of t.matchAll(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})\b/g)) {
+    const f = fechaValida(Number(m[3]), Number(m[2]), Number(m[1]));
+    if (f) encontradas.add(f);
+  }
+  for (const m of t.matchAll(/\b(\d{1,2})\s+(?:DE\s+)?([A-Z]+)\s+(?:DE\s+|DEL\s+)?(\d{4})\b/g)) {
+    const mes = MESES[m[2]];
+    const f = mes && fechaValida(Number(m[3]), mes, Number(m[1]));
+    if (f) encontradas.add(f);
+  }
+  // Dos fechas distintas (p. ej. "del 1/10/2026 al 30/10/2026") ya no son
+  // inequívocas: mejor no mostrar la beca que mostrar un plazo equivocado.
+  return encontradas.size === 1 ? [...encontradas][0] : null;
+}
+
 function mapearABeca(detalle, region) {
   if (!detalle) return null;
   // OJO: el flag "abierto" de la BDNS no es fiable como señal de vigencia
   // (en la práctica aparece en false incluso para convocatorias con una
   // fechaFinSolicitud real todavía futura); el único dato que importa es
-  // si el plazo de solicitud estructurado sigue vigente.
-  if (!detalle.fechaFinSolicitud) return null; // sin fecha real, no la mostramos
-
-  const deadline = detalle.fechaFinSolicitud.slice(0, 10);
-  if (new Date(deadline) < new Date(new Date().toDateString())) return null; // ya cerrada
+  // si el plazo de solicitud sigue vigente.
+  const deadline = detalle.fechaFinSolicitud
+    ? detalle.fechaFinSolicitud.slice(0, 10)
+    : extraerFechaFin(detalle.textFin);
+  if (!deadline) return null; // sin fecha real, no la mostramos
+  if (deadline < new Date().toISOString().slice(0, 10)) return null; // ya cerrada
 
   if (!detalle.urlBasesReguladoras) return null; // sin fuente oficial verificable, se omite
 
@@ -188,7 +240,8 @@ async function syncBdns(diasHaciaAtras, supabase) {
   const becas = [];
   for (const c of candidatas) {
     const detalle = await obtenerDetalle(c.numeroConvocatoria);
-    const beca = mapearABeca(detalle, c._region);
+    const region = regionDe(detalle);
+    const beca = region ? mapearABeca(detalle, region) : null;
     if (beca) becas.push(beca);
     await sleep(RETRASO_MS);
   }
@@ -211,4 +264,4 @@ async function syncBdns(diasHaciaAtras, supabase) {
   return { candidatas: candidatas.length, becasEncontradas: becas.length, ok, fallos, errores };
 }
 
-module.exports = { syncBdns };
+module.exports = { syncBdns, regionDe, extraerFechaFin, mapearABeca };
