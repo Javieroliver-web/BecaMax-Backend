@@ -14,7 +14,7 @@
 const { componerMensaje, motivoNoPublicable } = require('./plantilla');
 const { ErrorCanal } = require('./errores');
 
-const TODOS_LOS_CANALES = [require('./canales/telegram')];
+const TODOS_LOS_CANALES = [require('./canales/telegram'), require('./canales/bluesky')];
 
 const MAX_INTENTOS = 3;
 const DIAS_DE_MARGEN = 3; // no anunciar becas que cierran en menos de 3 días

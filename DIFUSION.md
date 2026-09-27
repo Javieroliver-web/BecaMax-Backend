@@ -20,6 +20,10 @@ Cada día, las becas nuevas de la BDNS que sincroniza el cron de las 06:00 se pu
 | `DIFUSION_TELEGRAM` | `on` | Activa Telegram. Cualquier otro valor lo apaga. |
 | `TELEGRAM_BOT_TOKEN` | `123456:ABC…` | Token que da @BotFather. **Secreto.** |
 | `TELEGRAM_CHANNEL_ID` | `@becamax_becas` | Canal público (o su id `-100…`). |
+| `DIFUSION_BLUESKY` | `on` | Activa Bluesky. |
+| `BLUESKY_HANDLE` | `becamax.bsky.social` | Usuario de la cuenta. |
+| `BLUESKY_APP_PASSWORD` | `xxxx-xxxx-xxxx-xxxx` | **Contraseña de aplicación**, nunca la de la cuenta. **Secreto.** |
+| `BLUESKY_SERVICE` | `https://bsky.social` | Opcional. Solo si la cuenta está en otro servidor. |
 | `DIFUSION_MAX_POR_EJECUCION` | `5` | Opcional. Máximo por canal y día (1–20). |
 | `DIFUSION_DESDE` | `2026-10-01` | Opcional. Solo becas añadidas a BecaMax desde esa fecha. Evita anunciar en bloque las que ya estaban. |
 
@@ -41,9 +45,13 @@ npm test
    - Habla con [@BotFather](https://t.me/BotFather), escribe `/newbot` y guarda el token.
    - Crea un canal público, por ejemplo «BecaMax · Becas nuevas», con un alias como `@becamax_becas`.
    - Añade el bot al canal como **administrador** con permiso para publicar.
-2. **Supabase:** ejecuta `supabase/difusion_setup.sql` en el SQL Editor. La última consulta debe devolver `true` en las dos columnas.
-3. **Vercel:** añade las variables de la tabla. Pon `DIFUSION_DESDE` con la fecha del día que lo actives.
-4. **Prueba:** ejecuta `npm run difusion -- --dry-run` en local con el `.env`. Después, fusiona el PR. El primer envío real será al día siguiente a las 08:00 UTC, o antes si lanzas el cron a mano:
+2. **Bluesky:**
+   - Crea la cuenta, por ejemplo `becamax.bsky.social`.
+   - Ve a Ajustes → Privacidad y seguridad → Contraseñas de aplicación, crea una llamada «BecaMax difusión» y guárdala.
+   - En Bluesky el enlace va en una **tarjeta** bajo el post, sin imagen de miniatura, y el texto se ajusta a 300 caracteres.
+3. **Supabase:** ejecuta `supabase/difusion_setup.sql` en el SQL Editor. La última consulta debe devolver `true` en las dos columnas.
+4. **Vercel:** añade las variables de la tabla. Pon `DIFUSION_DESDE` con la fecha del día que lo actives.
+5. **Prueba:** ejecuta `npm run difusion -- --dry-run` en local con el `.env`. Después, fusiona el PR. El primer envío real será al día siguiente a las 08:00 UTC, o antes si lanzas el cron a mano:
 
    ```bash
    curl -X POST -H "Authorization: Bearer <CRON_SECRET>" https://beca-max-backend.vercel.app/api/difusion/process_cron
