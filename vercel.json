@@ -24,6 +24,10 @@
     {
       "path": "/api/difusion/process_cron",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/boletin/process_cron",
+      "schedule": "0 9 * * 1"
     }
   ]
 }

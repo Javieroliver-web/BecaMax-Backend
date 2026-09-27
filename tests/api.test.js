@@ -378,3 +378,23 @@ test('el cron de difusión exige CRON_SECRET y no toca la base de datos sin él'
     delete process.env.CRON_SECRET;
   }
 });
+
+test('boletín: el alta exige la cabecera propia y, sin correo configurado, no guarda nada', async () => {
+  const cuerpo = JSON.stringify({ email: 'ana@example.com', version: '2026-10' });
+  const sinCabecera = await fetch(`${base}/api/boletin/alta`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: cuerpo });
+  assert.strictEqual(sinCabecera.status, 403);
+  const sinCorreo = await fetch(`${base}/api/boletin/alta`, { method: 'POST', headers: ESCRITURA, body: cuerpo });
+  assert.strictEqual(sinCorreo.status, 503);
+  const malo = await fetch(`${base}/api/boletin/alta`, { method: 'POST', headers: ESCRITURA, body: JSON.stringify({ email: 'x', version: '2026-10' }) });
+  assert.strictEqual(malo.status, 400);
+  assert.strictEqual(recibidas.length, 0);
+});
+
+test('boletín: un enlace de baja o confirmación falso lleva a la web sin tocar la base de datos', async () => {
+  for (const ruta of ['baja', 'confirmar']) {
+    const res = await fetch(`${base}/api/boletin/${ruta}?token=falso`, { redirect: 'manual' });
+    assert.strictEqual(res.status, 303);
+    assert.strictEqual(res.headers.get('location'), 'https://becamax.vercel.app/pages/boletin.html?estado=invalido');
+  }
+  assert.strictEqual(recibidas.length, 0);
+});

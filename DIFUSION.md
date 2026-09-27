@@ -56,3 +56,40 @@ npm test
    ```bash
    curl -X POST -H "Authorization: Bearer <CRON_SECRET>" https://beca-max-backend.vercel.app/api/difusion/process_cron
    ```
+
+---
+
+# Boletín semanal por correo
+
+Todos los **lunes a las 09:00 UTC** (`/api/boletin/process_cron`) se manda a los suscriptores **confirmados** un correo con las becas nuevas de la semana y las que cierran en los próximos 14 días. Si no hay ninguna, no se manda nada.
+
+## Cómo cumple el RGPD
+
+- **Doble confirmación:** el alta (`POST /api/boletin/alta`) solo guarda la dirección y manda un correo con un enlace. No se envía ningún boletín hasta que la persona lo pulsa. El enlace caduca en 48 horas.
+- **Prueba del consentimiento:** se guardan el texto exacto aceptado, su versión y la fecha. El texto lo fija el backend en `CONSENTIMIENTOS` (`src/services/boletin/index.js`); si cambia, se crea una versión nueva.
+- **Baja con un clic:** cada correo trae un enlace de baja y las cabeceras `List-Unsubscribe` y `List-Unsubscribe-Post` (RFC 8058), para que Gmail y otros clientes muestren su botón «Cancelar suscripción». La baja **borra la fila**.
+- **Minimización:** las altas sin confirmar se borran a los 7 días. En la base de datos solo se guarda el hash del token de confirmación.
+- **Sin enumerar suscriptores:** el alta responde lo mismo tanto si la dirección ya estaba como si no.
+- **Contra el abuso:** 5 altas cada 15 minutos por IP, 10 minutos entre correos de confirmación a la misma dirección y hCaptcha si hay `HCAPTCHA_SECRET`.
+
+## Variables de entorno
+
+| Variable | Ejemplo | Para qué |
+|---|---|---|
+| `BOLETIN_FROM` | `BecaMax <boletin@becamax.es>` | Remitente. **Debe ser de un dominio verificado en Resend.** Sin esta variable, el boletín queda apagado. |
+| `RESEND_API_KEY` | (ya existe) | La misma que usan las alertas. |
+| `BACKEND_URL` | `https://beca-max-backend.vercel.app` | Opcional. Base de los enlaces de confirmación y baja. |
+| `HCAPTCHA_SECRET` | `0x…` | Opcional pero recomendado. La clave secreta de hCaptcha, la misma del panel de hCaptcha que usa Supabase. |
+
+## Pasos manuales
+
+1. **Dominio propio verificado en Resend.** Sin él, Resend solo deja enviar a la dirección de tu propia cuenta. Añade los registros DNS que pide Resend y pon `BOLETIN_FROM` con una dirección de ese dominio.
+   - ⚠ Las alertas usan `alertas@becamax.es`, que tampoco está verificado: con el dominio se arreglan las dos cosas.
+2. **Supabase:** ejecuta `supabase/boletin_setup.sql`. La última consulta debe devolver `true` en las tres columnas.
+3. **Vercel:** añade `BOLETIN_FROM` y, si quieres, `HCAPTCHA_SECRET`.
+4. **Frontend** (repositorio `BecaMax-Frontend`, rama `feat/boletin-alta`):
+   - el formulario de alta en la portada;
+   - la página `pages/boletin.html`, con el resultado de confirmar o darse de baja;
+   - la sección del boletín en la política de privacidad.
+
+   Revísalo y publícalo **después** del backend.

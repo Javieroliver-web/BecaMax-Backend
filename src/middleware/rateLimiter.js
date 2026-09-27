@@ -93,4 +93,13 @@ const visitasLimiter = buildLimiter({
     message: 'Demasiadas peticiones desde esta IP. Inténtalo más tarde.'
 });
 
-module.exports = { globalLimiter, authLimiter, visitasLimiter };
+// Boletín: el alta manda un correo a la dirección que se escriba. 5 cada
+// 15 min por IP bastan para una persona real y frenan usarlo para mandar
+// correos a direcciones ajenas.
+const boletinLimiter = buildLimiter({
+    max: 5,
+    prefix: 'becamax-ratelimit-boletin',
+    message: 'Demasiadas peticiones. Espera unos minutos antes de volver a probar.'
+});
+
+module.exports = { globalLimiter, authLimiter, visitasLimiter, boletinLimiter };
